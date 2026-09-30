@@ -5,8 +5,6 @@ attend assis, et remue la queue quand le curseur approche. Un clic gauche sert (
 droit reprend l'objet (stop_holding). Chaque clic avec le sachet fait tomber une friandise
 (drop_treat) ; le chat va les manger une à une, là où elles sont tombées.
 """
-import math
-
 from felix.core.actions import Jump, Play, WalkTo
 from felix.core.ball import Ball, BallKind
 from felix.core.tuning import (
@@ -16,6 +14,7 @@ from felix.core.tuning import (
 
 TREAT = BallKind("treats_treat", 4, 1000, 10_000.0, 0.0, 0, None, frames=1, grabbable=False)
 NEEDS = {"can": "can_serve", "carton": "carton_pour", "treats": "treats_eat_right"}  # animations requises
+SEATED = ("sit_front", "head_", "paw_", "stroked")  # assis de face : il attend l'objet sans se relever
 
 
 class AwaitItem:
@@ -31,15 +30,20 @@ class AwaitItem:
         pet.play(self.still)
 
     def _near(self, pet):
+        """Le curseur dans sa cellule élargie de WAG_NEAR px (rectangle de l'original)."""
         cursor = pet.snap.cursor if pet.snap else None
         if cursor is None:
             return False
-        hx, hy = pet.head()
-        return math.hypot(cursor[0] - hx, cursor[1] - hy) <= WAG_NEAR * pet.k
+        frame = pet.player.frame
+        x0, y0 = pet.body.x - frame.anchor[0], pet.body.y - frame.anchor[1]
+        m = WAG_NEAR * pet.k
+        return x0 - m <= cursor[0] <= x0 + frame.rect[2] + m and y0 - m <= cursor[1] <= y0 + frame.rect[3] + m
 
     def update(self, pet, dt):
         self.elapsed += dt
-        if pet._item_state != "held" or self.elapsed >= HOLD_PATIENCE:
+        if pet._item_state == "held" and self.elapsed >= HOLD_PATIENCE:
+            pet._item_state = "done"  # il renonce : l'objet quitte le curseur tout de suite
+        if pet._item_state != "held":
             return True
         wrapped = pet.player.update(dt) and pet.player.index == 0
         playing = pet.player.animation.name
@@ -51,25 +55,32 @@ class AwaitItem:
 
 
 class LookAtCursor:
-    """Debout, tourné vers le curseur (le sachet), un instant."""
+    """Debout, tourné vers le curseur (le sachet), en clignant des yeux ; il se retourne s'il
+    passe de l'autre côté. Jusqu'à ce que `done()` soit vrai."""
     airborne = False
 
-    def __init__(self, duration):
-        self.duration = duration
+    def __init__(self, done):
+        self.done = done
 
     def start(self, pet):
-        self.elapsed = 0.0
-        pet.play(f"stand_{pet.facing if pet.facing in ('left', 'right') else 'right'}")
+        side = pet.facing if pet.facing in ("left", "right") else "right"
+        if pet.player.animation.name != f"treats_wait_{side}":
+            pet.play(f"treats_wait_{side}")
 
     def update(self, pet, dt):
-        self.elapsed += dt
+        if self.done():
+            return True
         pet.player.update(dt)
+        if pet.player.animation.name.startswith("turn_to_"):
+            if pet.player.finished:
+                pet.play(f"treats_wait_{pet.facing}")
+            return False
         cursor = pet.snap.cursor if pet.snap else None
         if cursor is not None and abs(cursor[0] - pet.body.x) > 20:
             want = "right" if cursor[0] > pet.body.x else "left"
             if want != pet.facing:
-                pet.play(f"stand_{want}")
-        return self.elapsed >= self.duration
+                pet.play(f"turn_to_{want}")
+        return False
 
 
 class FeedingScenes:
@@ -84,14 +95,22 @@ class FeedingScenes:
         if NEEDS[kind] not in self.anims or self.body is None or self._item_state is not None:
             return
         self._item, self._item_state = kind, "held"
-        self.request(kind)
+        self.request(kind)  # s'il est occupé, il viendra ensuite
 
     def serve(self):
-        if self._item_state == "held" and self._item in ("can", "carton"):
+        """Clic avec la boîte ou la brique : servi seulement s'il l'attend déjà, assis devant."""
+        if self._item_state == "held" and self._item in ("can", "carton") and isinstance(self.action, AwaitItem):
             self._item_state = "served"
+            return True
+        return False
 
     def stop_holding(self):
-        if self._item_state == "held":
+        if self._item_state != "held":
+            return
+        if self.scene != self._item and self._item in self._requests:
+            self._requests.remove(self._item)  # il n'était pas encore venu : rien à ranger
+            self._end_item()
+        else:
             self._item_state = "done"
 
     def drop_treat(self, x, y):
@@ -105,6 +124,12 @@ class FeedingScenes:
     def _end_item(self):
         self._item = self._item_state = None
 
+    def _sit_for_item(self):
+        """S'assoit face à l'écran pour attendre l'objet, s'il ne l'est pas déjà (il suivait le curseur)."""
+        if not self.player.animation.name.startswith(SEATED):
+            yield from self._face("right")
+            yield Play("sit_down")
+
     def _do_can(self):
         """Pâtée Felix : il attend la boîte, assis ; servie, la gamelle apparaît, il hume, mange,
         et la gamelle vide s'efface."""
@@ -113,8 +138,9 @@ class FeedingScenes:
         try:
             yield from self._make_room(*CAN_ROOM)
             self._shoo_kitten(*CAN_ROOM)
-            yield from self._face("right")
-            yield Play("sit_down")
+            if self._item_state != "held":
+                return  # déjà repris
+            yield from self._sit_for_item()
             yield AwaitItem("can_sit", "can_wag")
             if self._item_state != "served":
                 yield Play("sit_up")  # on l'a reprise
@@ -142,8 +168,9 @@ class FeedingScenes:
         try:
             yield from self._make_room(*CARTON_ROOM)
             self._shoo_kitten(*CARTON_ROOM)
-            yield from self._face("right")
-            yield Play("sit_down")
+            if self._item_state != "held":
+                return  # déjà reprise
+            yield from self._sit_for_item()
             yield Play("carton_bowl_in")
             yield AwaitItem("carton_sit", "carton_wag")
             if self._item_state != "served":
@@ -161,56 +188,80 @@ class FeedingScenes:
             self.needs.drink()
             yield Play("carton_lick", event="purr")
             yield Play("carton_clear")
+            yield Play("turn_to_right")  # assis de trois quarts : il se tourne avant de repartir
         finally:
             self._end_item()
             self._unshoo_kitten()
 
     def _do_treats(self):
-        """Friandises : il regarde le sachet ; chaque friandise tombée, il va la manger là où elle est."""
-        if self._item != "treats":
+        """Friandises : il regarde le sachet ; chaque friandise tombée, il va la manger là où elle est.
+        Interrompu (attrapé…), il revient finir celles qui restent par terre."""
+        if self._item != "treats" and not self.treats:
             return
         try:
-            waited = 0.0
+            start = self.clock
             while True:
                 treat = self._next_treat()
                 if treat is not None:
-                    waited = 0.0
+                    start = self.clock
                     yield from self._eat_treat(treat)
                     continue
                 if self._item_state != "held" and all(t.grounded for t in self.treats):
                     break
-                waited += 0.5
-                if waited >= HOLD_PATIENCE:
-                    self._item_state = "done"
-                yield LookAtCursor(0.5)
+                if self._item_state == "held" and self.clock - start >= HOLD_PATIENCE:
+                    self._item_state = "done"  # le sachet s'en va ; il finit ce qui tombe encore
+                yield LookAtCursor(lambda: self._item_state != "held" or self._next_treat() is not None
+                                   or self.clock - start >= HOLD_PATIENCE)
         finally:
-            self.treats = []
-            self._end_item()
+            if self._item == "treats":
+                self._end_item()
 
     def _next_treat(self):
         """La friandise posée la plus proche qu'il peut atteindre ; les autres sont perdues."""
         seg = self.body.support
+        if seg is None:
+            return None
         for treat in [t for t in self.treats if t.grounded]:
-            if treat.support != seg and self._treat_leap(treat) is None:
-                self.treats.remove(treat)  # hors d'atteinte
+            if treat.support != seg and self._treat_leap(treat, self._closest(seg, treat.x)) is None:
+                self.treats.remove(treat)  # hors d'atteinte, même en s'approchant
         landed = [t for t in self.treats if t.grounded]
         return min(landed, key=lambda t: abs(t.x - self.body.x)) if landed else None
 
-    def _treat_leap(self, treat):
+    def _closest(self, seg, x):
+        m = EDGE_MARGIN * self.k
+        return min(max(x, seg.x0 + m), seg.x1 - m)
+
+    def _treat_leap(self, treat, from_x=None):
+        """Où sauter pour avoir la friandise, posée sur une autre surface, juste devant lui ; d'abord
+        du côté d'où il arrive. None si aucun saut n'y mène depuis `from_x` (sa position)."""
         s = treat.support
-        if not (self.body.y - JUMP_UP <= s.y <= self.body.y + JUMP_DOWN) or abs(treat.x - self.body.x) > JUMP_REACH:
+        x0 = self.body.x if from_x is None else from_x
+        if s is None or not (self.body.y - JUMP_UP <= s.y <= self.body.y + JUMP_DOWN):
             return None
         m = EDGE_MARGIN * self.k
-        sign = 1 if treat.x >= self.body.x else -1
-        x = treat.x - sign * TREAT_REACH[0 if sign > 0 else 1] * self.k
-        return (x, s.y) if s.x0 + m <= x <= s.x1 - m else None
+        near = 1 if treat.x >= x0 else -1
+        for sign in (near, -near):
+            x = treat.x - sign * TREAT_REACH[0 if sign > 0 else 1] * self.k
+            if s.x0 + m <= x <= s.x1 - m and abs(x - x0) <= JUMP_REACH and self._lands_on(x, s):
+                return x, s.y
+        return None
 
     def _eat_treat(self, treat):
         sign = 1 if treat.x >= self.body.x else -1
         side = "right" if sign > 0 else "left"
         if treat.support != self.body.support:
-            yield from self._face(side)
-            yield Jump(*self._treat_leap(treat))
+            if self._treat_leap(treat) is None:  # trop loin : il s'approche d'abord
+                spot = self._closest(self.body.support, treat.x)
+                if abs(spot - self.body.x) > 1:
+                    yield from self._face("right" if spot > self.body.x else "left")
+                    yield WalkTo(spot, idle=False)
+            leap = self._treat_leap(treat)
+            if leap is None or treat not in self.treats:
+                return
+            yield from self._face("right" if leap[0] >= self.body.x else "left")
+            leap = self._treat_leap(treat)  # sa fenêtre a pu bouger ou se fermer pendant le demi-tour
+            if leap is not None and treat in self.treats:
+                yield Jump(*leap)
             return
         target = treat.x - sign * TREAT_REACH[0 if sign > 0 else 1] * self.k
         if abs(target - self.body.x) > 1:

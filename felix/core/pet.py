@@ -379,6 +379,11 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
                 yield from getattr(self, f"_do_{self.scene}")()
                 self.scene = None
                 continue
+            if self.treats and not self._still:  # des friandises attendent encore par terre
+                self.scene = "treats"
+                yield from self._do_treats()
+                self.scene = None
+                continue
             self._send_off_stray_toy()
             if self._still:
                 yield Play(f"stand_{self.facing}", duration=1.0)

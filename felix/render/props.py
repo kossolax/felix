@@ -4,7 +4,7 @@ import random
 import sys
 
 from PySide6.QtCore import QPropertyAnimation, QRect, QTimer, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QBitmap, QColor, QGuiApplication, QPainter, QPainterPath, QPen, QPixmap, QRegion
 from PySide6.QtWidgets import QWidget
 
 FADE_MS = 3000
@@ -13,8 +13,14 @@ GHOST_HOLD = 0.15  # s : fantôme tramé d'un accessoire qui disparaît (le plac
 GHOST_FADE_MS = 350  # … puis fondu
 
 
+def shape_masks():
+    """Découper les fenêtres à la forme de l'accessoire : sous X11 sans compositeur, sinon il s'affiche
+    dans un rectangle noir ; Windows gère la transparence au pixel."""
+    return sys.platform != "win32" and QGuiApplication.platformName() not in ("offscreen", "minimal")
+
+
 class PropWindow(QWidget):
-    def __init__(self, pixmap, x, y, lifetime, fade_ms=FADE_MS):
+    def __init__(self, pixmap, x, y, lifetime, fade_ms=FADE_MS, masked=False):
         flags = (Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
                  | Qt.WindowType.WindowTransparentForInput | Qt.WindowType.WindowDoesNotAcceptFocus)
         if sys.platform.startswith("linux"):
@@ -22,11 +28,22 @@ class PropWindow(QWidget):
         super().__init__(None, flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.pixmap = pixmap
+        self.masked = masked
+        self.closed = False
         self.lifetime, self.fade_ms = lifetime, fade_ms
         self.setGeometry(QRect(round(x), round(y), pixmap.width(), pixmap.height()))
+        self._set_pixmap(pixmap)
         self._fade = None
         QTimer.singleShot(int(lifetime * 1000), self.fade_out)
+
+    def _set_pixmap(self, pixmap):
+        self.pixmap = pixmap
+        if self.masked:
+            self.setMask(QRegion(QBitmap.fromImage(pixmap.toImage().createAlphaMask())))
+
+    def closeEvent(self, event):
+        self.closed = True
+        super().closeEvent(event)
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -49,8 +66,8 @@ class PropWindow(QWidget):
 class AnimPropWindow(PropWindow):
     """Accessoire animé qui se joue une fois puis disparaît (ex. la déchirure qui se referme)."""
 
-    def __init__(self, pixmaps, x, y, fps):
-        super().__init__(pixmaps[0], x, y, lifetime=3600)
+    def __init__(self, pixmaps, x, y, fps, masked=False):
+        super().__init__(pixmaps[0], x, y, lifetime=3600, masked=masked)
         self.frames = list(pixmaps)
         self.index = 0
         self._timer = QTimer(self)
@@ -63,7 +80,7 @@ class AnimPropWindow(PropWindow):
             self._timer.stop()
             self.close()
             return
-        self.pixmap = self.frames[self.index]
+        self._set_pixmap(self.frames[self.index])
         self.update()
 
 
@@ -88,13 +105,23 @@ def claw_pixmap(height, rng):
 
 
 class PropManager:
-    def __init__(self, bank, lifetime=40.0, limit=16, on_created=None):
+    def __init__(self, bank, lifetime=40.0, limit=16, on_created=None, masked=None):
         self.bank = bank
         self.lifetime = lifetime
         self.limit = limit
         self.on_created = on_created  # ex. remettre le chat au-dessus des accessoires
+        self.masked = shape_masks() if masked is None else masked
+        self.hidden = False  # derrière une appli en plein écran, comme le chat
         self.windows = []
         self.rng = random.Random()
+
+    def set_hidden(self, hidden):
+        if hidden == self.hidden:
+            return
+        self.hidden = hidden
+        for w in self.windows:
+            if not w.closed:
+                w.setVisible(not hidden)
 
     def handle(self, event):
         if not isinstance(event, tuple):
@@ -103,23 +130,26 @@ class PropManager:
         if kind == "marks":
             for (sheet, sx, sy, w, h), (x, y) in event[1]:
                 pix = QPixmap.fromImage(self.bank.sheets[sheet].copy(QRect(sx, sy, w, h)))
-                self._add(PropWindow(pix, x, y, self.lifetime))
+                self._add(PropWindow(pix, x, y, self.lifetime, masked=self.masked))
         elif kind == "ghost":
             _, (sheet, sx, sy, w, h), (x, y) = event
             pix = QPixmap.fromImage(self.bank.sheets[sheet].copy(QRect(sx, sy, w, h)))
-            self._add(PropWindow(pix, x, y, GHOST_HOLD, GHOST_FADE_MS))
+            self._add(PropWindow(pix, x, y, GHOST_HOLD, GHOST_FADE_MS, masked=self.masked))
         elif kind == "prop_anim":
             _, name, (x, y), mirrored = event
             anim = self.bank.animations[name]
-            self._add(AnimPropWindow([self.bank.pixmap(f, mirrored) for f in anim.frames], x, y, anim.fps))
+            self._add(AnimPropWindow([self.bank.pixmap(f, mirrored) for f in anim.frames], x, y, anim.fps,
+                                     masked=self.masked))
         elif kind == "claws":
             _, x, top, bottom = event
-            self._add(PropWindow(claw_pixmap(round(bottom - top), self.rng), x - CLAW_WIDTH / 2, top, self.lifetime))
+            self._add(PropWindow(claw_pixmap(round(bottom - top), self.rng), x - CLAW_WIDTH / 2, top, self.lifetime,
+                                 masked=self.masked))
 
     def _add(self, window):
-        self.windows = [w for w in self.windows if w.isVisible() or w is window]
+        self.windows = [w for w in self.windows if not w.closed]
         self.windows.append(window)
-        window.show()
+        if not self.hidden:
+            window.show()
         while len(self.windows) > self.limit:
             self.windows.pop(0).close()
         if self.on_created is not None:

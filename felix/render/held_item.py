@@ -4,7 +4,7 @@ clic droit : le reprendre."""
 import sys
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QGuiApplication, QPainter, QRegion
 from PySide6.QtWidgets import QWidget
 
 # objet : (apparition, tenu, clic, disparition) — animations du manifeste (None : aucune)
@@ -14,6 +14,7 @@ ITEMS = {
     "treats": ("treats_bag_in", "treats_bag_hold", "treats_bag_pour", "treats_bag_out"),
 }
 POUR_DROP = 4  # la friandise sort à la 5e image du sachet qui verse
+HOTSPOT = 4  # px autour du point tenu par le curseur, toujours cliquable
 
 
 class HeldItemWindow(QWidget):
@@ -36,6 +37,9 @@ class HeldItemWindow(QWidget):
         self._t = 0.0
         self._on_frame = None  # (image, rappel) pendant l'animation en cours
         self._pos = (0, 0)
+        # sous X11 sans compositeur, la fenêtre est découpée à la forme de l'objet (sinon : un
+        # rectangle noir) ; Windows gère la transparence au pixel
+        self._use_mask = sys.platform != "win32" and QGuiApplication.platformName() not in ("offscreen", "minimal")
 
     @property
     def active(self):
@@ -91,6 +95,9 @@ class HeldItemWindow(QWidget):
         self.pixmap = self.bank.pixmap(frame)
         self.anchor = frame.anchor
         self.setFixedSize(self.pixmap.size())
+        if self._use_mask:
+            ax, ay = frame.anchor
+            self.setMask(self.bank.mask(frame).united(QRegion(ax - HOTSPOT, ay - HOTSPOT, 2 * HOTSPOT + 1, 2 * HOTSPOT + 1)))
         self._place()
         self.update()
 

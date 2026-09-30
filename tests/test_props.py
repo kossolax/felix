@@ -1,3 +1,4 @@
+from PySide6.QtCore import QPoint
 from PySide6.QtGui import QColor, QImage
 
 from felix.render.props import PropManager
@@ -43,3 +44,29 @@ def test_ghost_event_shows_a_prop_that_fades_away_at_once(qapp):
     (w,) = props.windows
     assert (w.x(), w.y(), w.width(), w.height()) == (500, 900, 30, 20)
     assert w.lifetime < 0.5 and w.fade_ms <= 500  # juste le temps de voir la trame s'effacer
+
+
+def test_props_are_cut_to_their_shape_without_a_compositor(qapp):
+    img = QImage(40, 40, QImage.Format.Format_ARGB32)
+    img.fill(QColor(0, 0, 0, 0))
+    for x in range(10):
+        for y in range(40):
+            img.setPixelColor(x, y, QColor(255, 255, 255, 255))
+    bank = FakeBank()
+    bank.sheets[122] = img
+    props = PropManager(bank, lifetime=60, masked=True)
+    props.handle(("marks", [((122, 0, 0, 40, 40), (500, 900))]))
+    (w,) = props.windows
+    assert w.mask().contains(QPoint(5, 5)) and not w.mask().contains(QPoint(30, 5))
+
+
+def test_props_hide_behind_a_fullscreen_app_and_come_back(qapp):
+    props = PropManager(FakeBank(), lifetime=60)
+    props.handle(("marks", [((122, 2, 3, 9, 12), (500, 900))]))
+    (w,) = props.windows
+    props.set_hidden(True)
+    assert not w.isVisible()
+    props.handle(("marks", [((122, 2, 3, 9, 12), (520, 900))]))
+    assert len(props.windows) == 2 and not any(p.isVisible() for p in props.windows)
+    props.set_hidden(False)
+    assert all(p.isVisible() for p in props.windows)

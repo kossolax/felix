@@ -248,6 +248,7 @@ class FelixApp(QObject):
             self._last_animation = view.animation
             log.debug("animation %s", view.animation)
         self.window.show_view(view)
+        self.props.set_hidden(view.hidden and not self.pet.away)  # derrière une appli en plein écran
         self._show_ball(view.ball)
         self._update_held(dt, snap)
         self._show_treats(view.treats)
@@ -286,8 +287,8 @@ class FelixApp(QObject):
         self.held.follow(*self._cursor())
 
     def _update_held(self, dt, snap):
-        if self.held.active and self.pet.holding is None:
-            self.held.release()  # le chat n'attend plus (patience épuisée, chute…)
+        if self.held.active and self.pet.holding is None and not self.held.pouring:
+            self.held.release()  # le chat n'attend plus (patience épuisée, chute…) ; le sachet se redresse d'abord
         if self.held.isVisible():
             if self.held.active:
                 self._follow_cursor()
@@ -296,8 +297,8 @@ class FelixApp(QObject):
     def _item_clicked(self, x, y):
         kind = self.pet.holding
         if kind in ("can", "carton"):
-            self.pet.serve()
-            self.held.release()
+            if self.pet.serve():  # sinon il ne l'attend pas encore (occupé) : l'objet reste au curseur
+                self.held.release()
         elif kind == "treats" and not self.held.pouring and self.treats_dropped < TREATS_PER_BAG:
             self.treats_dropped += 1
             last = self.treats_dropped == TREATS_PER_BAG
@@ -325,8 +326,15 @@ class FelixApp(QObject):
         while len(self.treat_windows) < len(treats):
             self.treat_windows.append(BallWindow(self.bank, on_grab=lambda: None, on_drag=lambda x, y: None,
                                                  on_throw=lambda vx, vy: None))
+        raised = False
         for window, view in zip(self.treat_windows, treats):
+            shown = window.isVisible()
             window.show_view(view)
+            raised |= window.isVisible() and not shown
+        if raised:  # le chat passe devant ses friandises, et le chaton devant lui
+            self.window.raise_()
+            if self.kitten_window.isVisible():
+                self.kitten_window.raise_()
         for window in self.treat_windows[len(treats):]:
             window.hide()
 

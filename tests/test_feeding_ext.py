@@ -8,7 +8,7 @@ import random
 from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.core.tuning import HOLD_PATIENCE
-from felix.core.world import Monitor, Rect, WorldSnapshot
+from felix.core.world import Monitor, Rect, WinRect, WorldSnapshot
 from tests.anim_helpers import make_anims
 
 DT = 1 / 30
@@ -136,3 +136,124 @@ def test_nothing_to_hold_without_the_extension():
     pet = settled_pet(anims=anims)
     pet.hold_item("can")
     assert pet.holding is None
+
+
+def watching_pet(seed=5, x=900):
+    """Assis, il suit le curseur des yeux (c'est là qu'on ouvre le menu d'un clic droit)."""
+    pet = settled_pet(seed, x)
+    cursor = (x + 60, 1080 - 150)
+    pet._run(pet._do_watch())
+    run(pet, 1.5, cursor=cursor)
+    assert pet.player.animation.name.startswith(("head_", "paw_", "sit_"))
+    return pet, cursor
+
+
+def test_a_seated_cat_waits_for_the_food_without_standing_up_first():
+    for kind in ("can", "carton"):
+        pet, cursor = watching_pet()
+        pet.hold_item(kind)
+        seen = names(run(pet, 3, cursor=cursor, until=lambda p, _v: p.player.animation.name.startswith(kind)))
+        assert seen[-1].startswith(kind) and "sit_down" not in seen, kind
+
+
+def test_after_the_milk_the_cat_turns_before_walking_off():
+    pet = settled_pet(2)
+    pet.hold_item("carton")
+    run(pet, 4)
+    pet.serve()
+    seen = names(run(pet, 40, until=lambda p, _v: p.scene is None))
+    after = seen[len(seen) - 1 - seen[::-1].index("carton_clear") + 1:]
+    assert after and after[0].startswith("turn_to_")  # assis de trois quarts : il se tourne avant de repartir
+
+
+def test_food_held_while_the_cat_is_busy_is_served_only_once_he_waits_for_it():
+    pet = settled_pet(2)
+    pet.request("tv")
+    run(pet, 3)
+    assert pet.scene == "tv"
+    pet.hold_item("can")
+    assert pet.holding == "can"
+    assert not pet.serve()  # il regarde la télé : le clic ne sert à rien, la boîte reste au curseur
+    assert pet.holding == "can"
+    run(pet, 60, until=lambda p, _v: p.player.animation.name == "can_sit")
+    assert pet.serve()
+
+
+def test_taking_the_food_back_before_the_cat_comes_cancels_it():
+    pet = settled_pet(2)
+    pet.request("tv")
+    run(pet, 3)
+    pet.hold_item("carton")
+    pet.stop_holding()
+    assert pet.holding is None and "carton" not in pet._requests
+    pet.hold_item("can")  # on peut en tenir un autre tout de suite
+    assert pet.holding == "can"
+
+
+def test_giving_up_waiting_puts_the_food_away_at_once():
+    pet = settled_pet(3)
+    pet.hold_item("carton")
+    for view in run(pet, HOLD_PATIENCE + 10):
+        if view.animation == "carton_bowl_out":
+            assert pet.holding is None  # la brique quitte le curseur dès qu'il renonce
+            return
+    raise AssertionError("il n'a pas renoncé")
+
+
+def test_the_tail_wags_when_the_food_comes_near_the_cat_not_only_its_head():
+    pet = settled_pet(4)
+    pet.hold_item("can")
+    run(pet, 3, until=lambda p, _v: p.player.animation.name == "can_sit")
+    x = pet.body.x
+    seen = names(run(pet, 2, cursor=(x + 90, 1080 + 10)))  # à côté de ses pattes, loin de sa tête
+    assert "can_wag" in seen
+
+
+def test_treats_left_on_the_floor_are_still_eaten_after_an_interruption():
+    pet = settled_pet(5, 900)
+    pet.hold_item("treats")
+    run(pet, 1)
+    for dx in (300, -300):
+        pet.drop_treat(900 + dx, 800)
+    run(pet, 1.5)
+    pet.grab(pet.body.x, pet.body.y - 30)
+    pet.release()
+    run(pet, 40, until=lambda p, _v: not p.treats and p.scene is None)
+    assert not pet.treats and pet.needs.hunger < 0.8 - 0.25  # les deux, mangées
+
+
+def test_a_treat_on_a_far_window_is_fetched_not_forgotten():
+    win = WinRect(1, Rect(1300, 700, 500, 380))
+    world = WorldSnapshot(monitors=(SCREEN,), windows=(win,), cursor=None)
+    pet = Pet(make_anims(), rng=random.Random(1), needs=Needs(0.8, 0.8))
+    for _ in range(int(4 / DT)):
+        pet.update(DT, world)
+    pet.body.x = 300
+    pet.hold_item("treats")
+    for _ in range(int(1 / DT)):
+        pet.update(DT, world)
+    pet.drop_treat(1600, 500)  # à 1300 px : il faut s'approcher avant de sauter
+    for _ in range(int(40 / DT)):
+        pet.update(DT, world)
+    assert pet.needs.hunger < 0.8 - 0.1
+
+
+def test_a_treat_on_a_window_that_closes_while_the_cat_turns_does_not_freeze_him():
+    win = WinRect(1, Rect(200, 700, 500, 380))
+    world = WorldSnapshot(monitors=(SCREEN,), windows=(win,), cursor=None)
+    empty = WorldSnapshot(monitors=(SCREEN,), windows=(), cursor=None)
+    pet = Pet(make_anims(), rng=random.Random(1), needs=Needs(0.8, 0.8))
+    for _ in range(int(4 / DT)):
+        pet.update(DT, world)
+    pet.body.x, pet.facing = 900, "right"
+    pet.hold_item("treats")
+    for _ in range(int(1 / DT)):
+        pet.update(DT, world)
+    pet.drop_treat(450, 500)
+    for _ in range(int(3 / DT)):
+        pet.update(DT, world)
+        if pet.player.animation.name.startswith("turn_to_"):
+            break
+    for _ in range(int(5 / DT)):
+        pet.update(DT, empty)  # la fenêtre de la friandise se ferme pendant son demi-tour
+    assert not pet.player.animation.name.startswith("turn_to_")

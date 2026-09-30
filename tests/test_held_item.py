@@ -3,7 +3,7 @@ import random
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QPoint, QSettings
 
 from felix.core.world import Monitor, Rect, WorldSnapshot
 from felix.platform.fake import FakeBackend
@@ -120,3 +120,45 @@ def test_the_kitten_can_be_shown_from_the_menu_and_has_its_own_window(bank, tmp_
     action(app, "Cacher le chaton")[1](False)
     ticks(app, 10)
     assert app.pet.kitten is None and not app.kitten_window.isVisible()
+
+
+def test_the_held_item_is_cut_to_its_shape_but_catches_clicks_at_the_cursor(bank, tmp_path):
+    app, _ = make_app(bank, tmp_path)
+    app.held._use_mask = True  # comme sous X11 : sans compositeur, pas de rectangle noir autour
+    for label in ("Pâtée Felix", "Lait Felix", "Friandises Felix"):
+        action(app, label)[1](False)
+        ticks(app, 0.5)
+        held = app.held
+        mask = held.mask()
+        assert not mask.isEmpty() and mask.boundingRect() != held.rect() or mask.rectCount() > 1, label
+        assert mask.contains(QPoint(*held.anchor)), label  # le point du curseur reste cliquable
+        app.held.click_right()
+        ticks(app, 2)
+
+
+def test_a_click_does_not_take_the_food_while_the_cat_is_busy(bank, tmp_path):
+    app, _ = make_app(bank, tmp_path)
+    app.pet.request("tv")
+    ticks(app, 1)
+    assert app.pet.scene == "tv"
+    action(app, "Pâtée Felix")[1](False)
+    ticks(app, 0.5)
+    app.held.click_left(1500, 400)
+    ticks(app, 0.5)
+    assert app.held.isVisible() and app.pet.holding == "can"  # toujours au curseur : il viendra après la télé
+
+
+def test_the_bag_finishes_tipping_back_before_going_away(bank, tmp_path):
+    app, backend = make_app(bank, tmp_path)
+    action(app, "Friandises Felix")[1](False)
+    ticks(app, 0.5)
+    seen = []
+    for x in (1200, 1400, 700):
+        backend.set(snap((x, 500)))
+        ticks(app, 0.2)
+        app.held.click_left(x, 500)
+        for _ in range(45):
+            app.tick(1 / 30)
+            seen.append(app.held._anim.name if app.held._anim is not None else None)
+    last = seen[max(i for i, n in enumerate(seen) if n == "treats_bag_pour"):]
+    assert "treats_bag_up" in last  # il se redresse avant de s'en aller
