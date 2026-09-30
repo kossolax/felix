@@ -20,6 +20,8 @@ def cat_on(snap, wid, x, seed):
     pet = Pet(make_anims(), rng=random.Random(seed), needs=Needs(0.1, 0.1))
     for _ in range(int(4 / DT)):
         pet.update(DT, snap)
+    while pet.scene is not None:  # une bêtise qu'il a commencée d'elle-même se finit avant le menu
+        pet.update(DT, snap)
     seg = next(s for s in compute_surfaces(snap) if s.owner == wid and s.spans(x))
     win = next(w for w in snap.windows if w.id == wid)
     pet.body.x, pet.body.y, pet.body.support, pet.body.owner_rect = x, seg.y, seg, win.rect
@@ -37,7 +39,7 @@ def run_scene(pet, snap, seconds=40):
         view = pet.update(DT, snap)
         trace.append((view.animation, pet.body.x))
         started |= pet.scene == "edge"
-        if started and pet.scene is None:
+        if started and pet.scene != "edge":  # finie (une bêtise peut s'enchaîner dans la même image)
             break
     return trace
 

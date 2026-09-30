@@ -31,7 +31,9 @@ class MischiefScenes:
         for _ in range(self.rng.randint(*SCRATCH_CYCLES)):
             yield Play(f"glass_scratch_{side}")
         yield Play(f"glass_scratch_{side}_down")
-        yield Play(f"glass_scratch_{side}_leave")  # les rayures restent (marks)
+        origin = self._cell_origin(f"glass_marks_{side}", False)
+        yield Play(f"glass_scratch_{side}_leave")
+        self.emit(("prop_anim", f"glass_marks_{side}", origin, False))  # les rayures restent 10 s, puis pâlissent
         sign = -1 if side == "left" else 1
         yield WalkTo(self.body.x + sign * self.rng.uniform(80, 200) * self.k, idle=False)
 
@@ -50,7 +52,9 @@ class MischiefScenes:
         yield Play("plant_pull")
         yield Play("plant_tangled", event="meow")
         yield Play("plant_leave")
-        yield Play("plant_leave_end")  # le désordre reste (marks)
+        origin = self._cell_origin("plant_mess_fade", False)
+        yield Play("plant_leave_end")
+        self.emit(("prop_anim", "plant_mess_fade", origin, False))  # le désordre reste 2,1 s, puis s'efface
         yield WalkTo(self.body.x - self.rng.uniform(80, 200) * self.k, idle=False)
 
     def _do_bin(self):
@@ -63,3 +67,4 @@ class MischiefScenes:
         for name in ("bin_appear", "bin_sniff", "bin_crouch", "bin_pounce", "bin_papers", "bin_papers_settle",
                      "bin_rummage", "bin_dig", "bin_dig_more", "bin_end"):
             yield Play(name)
+        yield WalkTo(self.body.x + self.rng.uniform(80, 200) * self.k, idle=False)  # il s'en va (script 1004)

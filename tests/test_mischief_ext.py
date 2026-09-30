@@ -29,13 +29,17 @@ def scene(pet, name, seconds=90):
         trace.append((view.animation, pet.body.x))
         events.extend(view.events)
         started |= pet.scene == name
-        if started and pet.scene is None:
+        if started and pet.scene != name:
             break
     return trace, events
 
 
 def marks(events):
     return [e for e in events if isinstance(e, tuple) and e[0] == "marks"]
+
+
+def prop_anims(events):
+    return [e for e in events if isinstance(e, tuple) and e[0] == "prop_anim"]
 
 
 def first_and_last(trace, prefix):
@@ -54,7 +58,10 @@ def test_the_cat_scratches_the_glass_and_leaves_claw_marks():
         assert [seen.index(n) for n in order] == sorted(seen.index(n) for n in order), facing
         start, end = first_and_last(trace, "glass_scratch_")
         assert end - start == (-97 if facing == "left" else 97)  # il repart dans le même sens
-        assert len(marks(events)) == 1 and len(marks(events)[0][1]) == 1  # les rayures restent
+        (fade,) = prop_anims(events)  # les rayures restent 10 s, puis pâlissent (801/803 f19-22)
+        assert fade[1] == f"glass_marks_{facing}" and marks(events) == []
+        anim = make_anims()[fade[1]]
+        assert len(anim.frames) == 103 and anim.fps == 10
 
 
 def test_the_cat_knocks_over_a_potted_plant_and_leaves_a_mess():
@@ -66,7 +73,8 @@ def test_the_cat_knocks_over_a_potted_plant_and_leaves_a_mess():
     assert [seen.index(n) for n in order] == sorted(seen.index(n) for n in order)
     start, end = first_and_last(trace, "plant_")
     assert end - start == -18
-    assert len(marks(events)) == 1 and len(marks(events)[0][1]) == 5  # pot, terre, plante, traces
+    (fade,) = prop_anims(events)  # le désordre reste 2,1 s, puis se trame et s'efface (planche 823)
+    assert fade[1] == "plant_mess_fade" and marks(events) == []
 
 
 def test_the_cat_raids_the_recycle_bin_and_everything_vanishes():
@@ -78,6 +86,8 @@ def test_the_cat_raids_the_recycle_bin_and_everything_vanishes():
     start, end = first_and_last(trace, "bin_")
     assert end - start == 111
     assert marks(events) == []
+    after = [a for a, _x in trace[next(i for i, (a, _x) in enumerate(trace) if a == "bin_end"):]]
+    assert "walk_right" in after  # puis il s'en va en marchant, comme l'original
 
 
 def test_mischief_needs_room_so_the_cat_first_moves_away_from_the_edge():

@@ -92,10 +92,12 @@ SCRATCH_ROOM = {"left": (145, 65), "right": (65, 145)}  # griffures sur la vitre
 SCRATCH_CYCLES = (3, 5)  # l'original en fait 4, de 1,2 s
 PLANT_ROOM = (70, 225)
 BIN_ROOM = (60, 235)
-TEAR_ROOM = (55, 150)  # déchirure dans l'écran (extension More Mischief)
-BUTTERFLY_ROOM = (45, 200)
-LEAVES_ROOM = (60, 240)
 WALK_ON = 80  # px de marche après la scène, le temps que l'accessoire s'efface
+# déchirure dans l'écran, papillon, feuilles (extension More Mischief) : à droite, ce que dessine la
+# scène et où elle laisse le chat (+103, +120, +217), plus la marche de sortie et la marge
+TEAR_ROOM = (55, 103 + WALK_ON + 30)
+BUTTERFLY_ROOM = (45, 120 + WALK_ON + 30)
+LEAVES_ROOM = (60, 217 + WALK_ON + 30)
 CAN_ROOM = (55, 85)  # pâtée Felix (extension Feeding)
 CARTON_ROOM = (55, 125)  # lait Felix
 HOLD_PATIENCE = 60.0  # s : il attend qu'on serve, puis passe à autre chose

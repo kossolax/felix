@@ -4,7 +4,7 @@ Des bêtises que le chat fait de lui-même (sans menu, comme l'original). Listes
 et points chauds relevés dans la DLL de l'extension ; les planches ne regardent que vers la droite,
 jouées en miroir quand la place manque de ce côté.
 """
-from felix.core.actions import Play, WalkTo
+from felix.core.actions import Hold, Play, WalkTo
 from felix.core.tuning import BUTTERFLY_ROOM, EDGE_MARGIN, LEAVES_ROOM, TEAR_ROOM, WALK_ON
 
 MORE_MISCHIEF_EXT = {"tear": 1, "butterfly": 1, "leaves": 1}  # poids faibles : scènes longues
@@ -23,19 +23,19 @@ class MoreMischiefScenes:
         return {name: w for name, w in MORE_MISCHIEF_EXT.items() if self._has_room(*ROOMS[name])}
 
     def _side(self, room):
-        """En miroir (décor à gauche) si c'est là qu'il y a le plus de place."""
+        """En miroir (décor à gauche) seulement si la place manque de l'autre côté, comme l'original."""
         seg = self.body.support
         m = EDGE_MARGIN * self.k
         need_right = max(0, self.body.x + room[1] * self.k - (seg.x1 - m))
         need_left = max(0, (seg.x0 + m) - (self.body.x - room[1] * self.k))
-        return need_left < need_right if need_left != need_right else self.rng.random() < 0.3
+        return need_left < need_right
 
     def _start(self, room):
         mirrored = self._side(room)
         yield from self._make_room(*(room[::-1] if mirrored else room))
         side = "left" if mirrored else "right"
         yield from self._face(side)
-        yield Play(f"stand_{side}", duration=0.4)  # il s'arrête : la 1re image a le corps de stand
+        yield Hold(f"stand_{side}", 0, 0.4, idle=False)  # il s'arrête sur la pose qui raccorde avec la 1re image
         return mirrored
 
     def _cell_origin(self, name, mirrored):
@@ -73,7 +73,7 @@ class MoreMischiefScenes:
                      "butterfly_hover", "butterfly_swat", "butterfly_getup", "butterfly_leap", "butterfly_land",
                      "butterfly_head", "butterfly_swat_again", "butterfly_leave"):
             yield Play(name, mirrored=m)
-        yield Play(f"stand_{'left' if m else 'right'}", duration=1.0)
+        yield from self._walk_on(m)  # puis il repart en marchant (script 0x3ec de l'original)
 
     def _do_leaves(self):
         """Un tas de feuilles mortes : à l'affût, il plonge dedans, s'y roule, s'ébroue, le traverse
@@ -82,17 +82,15 @@ class MoreMischiefScenes:
             return
         m = yield from self._start(LEAVES_ROOM)
         yield Play("leaves_appear", mirrored=m)
-        for _ in range(self.rng.randint(2, 4)):
+        for _ in range(3):  # tours de l'original : 3 à l'affût, 1 sur le dos, 1 couché
             yield Play("leaves_stalk", mirrored=m)
         yield Play("leaves_pounce", mirrored=m)
         yield Play("leaves_dive", mirrored=m, event="crunch")
         yield Play("leaves_roll", mirrored=m)
-        for _ in range(self.rng.randint(1, 3)):
-            yield Play("leaves_back", mirrored=m)
+        yield Play("leaves_back", mirrored=m)
         yield Play("leaves_roll_back", mirrored=m, event="crunch")
         yield Play("leaves_settle", mirrored=m)
-        for _ in range(self.rng.randint(1, 3)):
-            yield Play("leaves_lie", mirrored=m, event="purr")
+        yield Play("leaves_lie", mirrored=m, event="purr")
         yield Play("leaves_getup", mirrored=m)
         for _ in range(2):
             yield Play("leaves_shake", mirrored=m)

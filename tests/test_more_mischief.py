@@ -31,7 +31,7 @@ def scene(pet, name, seconds=120):
         view = pet.update(DT, SNAP)
         trace.append(view)
         started |= pet.scene == name
-        if started and pet.scene is None:
+        if started and pet.scene != name:
             break
     return trace
 
@@ -72,7 +72,37 @@ def test_the_cat_hidden_in_the_tear_cannot_be_grabbed_nor_stroked():
 def test_the_butterfly_scene_plays_through():
     for x in (500, 1880):
         pet = settled_pet(3, x)
-        assert in_order(scene(pet, "butterfly"), BUTTERFLY), x
+        trace = scene(pet, "butterfly")
+        assert in_order(trace, BUTTERFLY), x
+        after = [v.animation for v in trace[[v.animation for v in trace].index("butterfly_leave"):]]
+        assert any(a.startswith("walk_") for a in after), x  # puis il repart en marchant (script 0x3ec)
+
+
+def test_the_scene_plays_facing_right_when_there_is_room_on_both_sides():
+    for seed in range(6):
+        pet = settled_pet(seed, 900)
+        trace = scene(pet, "butterfly")
+        assert not any(v.mirrored for v in trace if v.animation.startswith("butterfly_")), seed
+
+
+def test_the_cat_stops_on_the_first_frame_of_his_standing_pose_before_the_scene():
+    for name, first in (("tear", "tear_scratch"), ("butterfly", "butterfly_arrive"), ("leaves", "leaves_appear")):
+        pet = settled_pet(2, 900)
+        trace = scene(pet, name)
+        i = [v.animation for v in trace].index(first)
+        assert trace[i - 1].animation.startswith("stand_") and trace[i - 1].frame == make_anims()[
+            trace[i - 1].animation].frames[0], name  # la pose qui raccorde avec la 1re image
+
+
+def test_the_leaves_scene_keeps_the_original_rounds():
+    pet = settled_pet(4, 700)
+    seen = [v.animation for v in scene(pet, "leaves")]
+    runs = [a for i, a in enumerate(seen) if i == 0 or seen[i - 1] != a]
+    for name, count in (("leaves_stalk", 3), ("leaves_back", 1), ("leaves_lie", 1)):
+        total = seen.count(name)
+        one = len(make_anims()[name].frames) / make_anims()[name].fps * 30
+        assert round(total / one) == count, name
+    assert runs
 
 
 def test_the_cat_dives_into_a_pile_of_leaves_which_then_fades():

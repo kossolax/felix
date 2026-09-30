@@ -35,7 +35,7 @@ def game(seed, x=800, seconds=90):
         view = pet.update(DT, SNAP)
         trace.append((view, pet.body.x, pet.player.index))
         started |= pet.scene == "mouse"
-        if started and pet.scene is None:
+        if started and pet.scene != "mouse":
             break
     return pet, trace
 
@@ -50,7 +50,7 @@ def test_the_mouse_walks_in_gets_caught_played_with_and_walks_away():
         seen = names(trace)
         order = ["mouse_notice", "mouse_near", "mouse_pounce", "mouse_play", "mouse_upright", "mouse_release"]
         assert [seen.index(n) for n in order] == sorted(seen.index(n) for n in order), seed
-        assert pet.scene is None and pet.ball is None  # partie hors de l'écran
+        assert pet.scene != "mouse" and pet.ball is None  # partie hors de l'écran
 
 
 def test_the_free_mouse_hides_while_the_cat_draws_it():

@@ -32,7 +32,7 @@ def game(seed, x=800, seconds=120):
         view = pet.update(DT, SNAP)
         trace.append((view, pet.body.x))
         started |= pet.scene == "frog"
-        if started and pet.scene is None:
+        if started and pet.scene != "frog":
             break
     return pet, trace
 
@@ -62,7 +62,7 @@ def test_the_cat_leaps_at_the_frog_again_and_again_but_never_catches_it():
         for (a, _ax), (b, cat_x) in zip(trace, trace[1:]):
             if a.animation.startswith("jump_air") and b.animation.startswith("jump_land") and b.ball is not None:
                 assert abs(b.ball.x - cat_x) >= 60, seed  # elle a filé
-        assert pet.scene is None and pet.ball is None, seed  # partie hors de l'écran
+        assert pet.scene != "frog" and pet.ball is None, seed  # partie hors de l'écran
 
 
 def test_the_frog_is_drawn_sitting_or_hopping_and_cannot_be_picked_up():
