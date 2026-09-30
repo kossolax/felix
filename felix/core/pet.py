@@ -35,9 +35,12 @@ HUNT_COOLDOWN = 20.0
 BORED_AFTER = 8.0  # un curseur immobile depuis ce temps n'intéresse plus
 PREY_FRESH = 20.0  # une proie immobile depuis plus longtemps n'est plus chassée
 CURSOR_JITTER = 3
-FEED_ROOM = (45, 110)  # place nécessaire à gauche / à droite du chat pour le placard
+FEED_ROOM = (45, 185)  # place nécessaire à gauche / à droite du chat pour le placard (3 portes)
 DRINK_ROOM = (80, 125)  # … pour la bouteille de lait
-EAT_TIME = 4.0
+EAT_CYCLES = (3, 5)  # tours de la porte qu'il pousse de l'intérieur (1,25 s) pendant qu'il mange
+LAP_CYCLES = (8, 14)  # coups de langue dans le lait renversé (0,5 s)
+FISH_WATCH = (1, 2)  # tours du poisson dans son bocal (3,5 s), assis à le regarder
+FISH_NOSE = (1, 2)  # … le nez collé au bocal (2,75 s)
 PRINTS_ROOM = (65, 50)
 FISHBOWL_ROOM = (35, 50)
 TV_ROOM = (45, 45)
@@ -71,6 +74,11 @@ BOX_HOP_X = (120, 240)  # sortie de la boîte, vers le chat
 BOX_HOP_Y = (420, 560)
 BALL_OUT_WEIGHT = 20  # envie de jouer avec une pelote qui traîne
 AWAY_TIME = (60, 300)  # s dehors, après une sortie par la chatière
+EDGE_REACH = 20  # px entre les pieds et le bord qu'il regarde : ses pattes avant au ras du bord
+EDGE_WEIGHT = 6
+EDGE_JUMP_CHANCE = 0.5  # après avoir regardé en bas, il saute (sinon il recule)
+EDGE_MIN_DROP = 40  # px : il ne saute que vers une surface au moins aussi bas
+EDGE_LAND = (80, 220)  # px au-delà du bord où il retombe
 OUTING_ROOM = (30, 110)
 
 
@@ -178,10 +186,11 @@ class Hold(Play):
 class WalkTo:
     airborne = False
 
-    def __init__(self, x, idle=True, gait="walk"):
+    def __init__(self, x, idle=True, gait="walk", margin=EDGE_MARGIN):
         self.target = x
         self.idle = idle
         self.gait = gait  # walk, ou trot (plus pressé)
+        self.margin = margin  # distance minimale aux bouts de la surface
 
     def start(self, pet):
         self.direction = "right" if self.target > pet.body.x else "left"
@@ -196,7 +205,7 @@ class WalkTo:
         dx = pet.player.animation.dx * steps
         x = pet.body.x + dx
         seg = pet.body.support
-        lo, hi = seg.x0 + EDGE_MARGIN * pet.k, seg.x1 - EDGE_MARGIN * pet.k
+        lo, hi = seg.x0 + self.margin * pet.k, seg.x1 - self.margin * pet.k
         reached = (x >= self.target) if dx > 0 else (x <= self.target)
         if reached:
             x = self.target
@@ -799,6 +808,8 @@ class Pet:
                 choices.pop("jump")
             if self._climb_target() is not None:
                 choices["climb"] = CLIMB_WEIGHT
+            if self._edges():
+                choices["edge"] = EDGE_WEIGHT
             name = self.temper.pick(choices)
             if name == "jump":
                 yield from self._do_jump(targets)
@@ -875,14 +886,30 @@ class Pet:
             yield WalkTo(target, idle=False)
 
     def _do_feed(self):
+        """Le placard apparaît (trame d'origine), le chat y entre et mange en poussant la porte,
+        passe la tête entre les boîtes, ressort, et le placard s'efface."""
         yield from self._make_room(*FEED_ROOM)
         yield from self._face("right")
         yield Play("sit_down")
+        yield Play("cupboard_appear")
         yield Play("cupboard_enter")
-        yield Hold("cupboard_enter", -1, EAT_TIME, idle=False, event="crunch")
+        for i in range(self.rng.randint(*EAT_CYCLES)):
+            yield Play("cupboard_eat", event="crunch" if i % 2 == 0 else None)
         self.needs.feed()
+        yield Play("cupboard_peek")
         yield Play("cupboard_exit")
+        ghost = self._ghost("cupboard_leave", "cupboard_vanish")
         yield Play("cupboard_leave")
+        self.emit(("ghost", *ghost))
+
+    def _ghost(self, name, ghost):
+        """Le fantôme tramé `ghost`, à l'écran là où la dernière image de `name` dessine sa couche
+        du dessous (le placard) : il reste un instant quand elle disparaît avec le chat."""
+        frame = self.anims[name].frames[-1]
+        _sheet, _rect, (ox, oy) = frame.under[0]
+        g = self.anims[ghost].frames[0]
+        x, y = self.body.x - frame.anchor[0] + ox, self.body.y - frame.anchor[1] + oy
+        return (g.sheet, *g.rect), (round(x), round(y))
 
     def _do_drink(self):
         yield from self._make_room(*DRINK_ROOM)
@@ -891,7 +918,10 @@ class Pet:
         yield Play("milk_peek")
         yield Play("milk_around")
         yield Play("milk_spill")
-        yield Play("milk_drink", event="lap")
+        yield Play("milk_drink")
+        for i in range(self.rng.randint(*LAP_CYCLES)):
+            yield Play("milk_lap", event="lap" if i % 3 == 0 else None)
+        yield Play("milk_done")
         self.needs.drink()
 
     def _do_prints(self):
@@ -900,10 +930,20 @@ class Pet:
         yield Play("paw_prints")
 
     def _do_fishbowl(self):
+        """Le bocal apparaît ; le chat regarde le poisson nager, y colle le nez, se rassoit pour le
+        regarder encore, puis le bocal s'efface. Le poisson nage dans une couche à part (301, 302)."""
         yield from self._make_room(*FISHBOWL_ROOM)
         yield from self._face("right")
         yield Play("sit_down")
         yield Play("fishbowl")
+        for _ in range(self.rng.randint(*FISH_WATCH)):
+            yield Play("fishbowl_watch")
+        yield Play("fishbowl_lean")
+        for _ in range(self.rng.randint(*FISH_NOSE)):
+            yield Play("fishbowl_nose")
+        yield Play("fishbowl_back")
+        yield Play("fishbowl_gaze")
+        yield Play("fishbowl_leave")
         yield Play("sit_up")
 
     def _do_tv(self):
@@ -1122,6 +1162,62 @@ class Pet:
         yield ClimbTop(target.owner)
         yield Play("sit_back", duration=self.rng.uniform(3, 6), idle=True)
         yield Play("sit_back_up")
+
+    def _do_edge(self):
+        """Va au bout de la fenêtre et regarde en bas (EdgeLeft/EdgeRight de l'original), puis saute
+        en bas ou recule."""
+        edges = self._edges()
+        if not edges:
+            return
+        side, x = self.rng.choice(edges)
+        direction = "right" if side > 0 else "left"
+        if abs(x - self.body.x) > 1:
+            yield from self._face("right" if x > self.body.x else "left")
+            yield WalkTo(x, idle=False, margin=EDGE_REACH)
+        yield from self._face(direction)
+        yield Play(f"edge_{direction}")
+        landing = self._edge_landing(side)
+        if landing is not None and self.rng.random() < EDGE_JUMP_CHANCE:
+            yield Jump(*landing, prep=f"leap_prep_{direction}")
+            return
+        yield Play(f"edge_{direction}_back")
+        yield from self._face("left" if side > 0 else "right")
+        yield WalkTo(self.body.x - side * self.rng.uniform(80, 200) * self.k)
+
+    def _edges(self):
+        """Bouts de la fenêtre sous le chat d'où l'on voit dans le vide : [(côté, x des pieds)].
+        Pas un bout caché par une fenêtre devant, ni suivi d'une autre surface, ni au bord de l'écran."""
+        seg = self.body.support if self.body is not None else None
+        if seg is None or seg.owner is None or self.snap is None:
+            return []
+        rect = next((w.rect for w in self.snap.windows if w.id == seg.owner), None)
+        if rect is None:
+            return []
+        reach = EDGE_REACH * self.k
+        out = []
+        for side, edge, beyond, real in ((-1, seg.x0, seg.x0 - 1, rect.x == seg.x0),
+                                         (1, seg.x1, seg.x1, rect.right == seg.x1)):
+            if not real or support_at(self.segments, beyond, seg.y) is not None:
+                continue
+            if not any(m.geometry.contains(beyond, seg.y - 1) for m in self.snap.monitors):
+                continue
+            x = edge - side * reach
+            if seg.x0 + reach <= x <= seg.x1 - reach:
+                out.append((side, x))
+        return out
+
+    def _edge_landing(self, side):
+        """Où retomber en sautant par-dessus ce bord : la première surface plus bas, à portée."""
+        seg = self.body.support
+        edge = seg.x1 if side > 0 else seg.x0
+        m = EDGE_MARGIN * self.k
+        lower = [s for s in self.segments if seg.y + EDGE_MIN_DROP * self.k <= s.y <= seg.y + JUMP_DOWN]
+        for s in sorted(lower, key=lambda s: s.y):
+            lo, hi = sorted((edge + side * EDGE_LAND[0] * self.k, edge + side * EDGE_LAND[1] * self.k))
+            lo, hi = max(lo, s.x0 + m), min(hi, s.x1 - m)
+            if lo <= hi:
+                return self.rng.uniform(lo, hi), s.y
+        return None
 
     def _climb_target_at(self, segment):
         """Le bord visé existe-t-il encore au-dessus du chat (fenêtre fermée ou déplacée entre-temps) ?"""

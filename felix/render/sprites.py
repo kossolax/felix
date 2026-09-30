@@ -73,9 +73,9 @@ class SpriteBank:
         return cls(sheets, anims, scale)
 
     def image(self, frame, mirrored=False):
-        """Image de la cellule, avec ses couches éventuelles dessinées dessous (voir frame_bounds)."""
+        """Image de la cellule, avec ses couches éventuelles dessous et dessus (voir frame_bounds)."""
         img = self.sheets[frame.sheet].copy(QRect(*frame.rect))
-        if frame.under:
+        if frame.under or frame.over:
             x0, y0, x1, y1 = frame_bounds(frame)
             canvas = QImage(x1 - x0, y1 - y0, QImage.Format.Format_ARGB32)
             canvas.fill(0)
@@ -83,19 +83,21 @@ class SpriteBank:
             for sheet, rect, (ox, oy) in frame.under:
                 p.drawImage(ox - x0, oy - y0, self.sheets[sheet].copy(QRect(*rect)))
             p.drawImage(-x0, -y0, img)
+            for sheet, rect, (ox, oy) in frame.over:
+                p.drawImage(ox - x0, oy - y0, self.sheets[sheet].copy(QRect(*rect)))
             p.end()
             img = canvas
         return img.transformed(QTransform.fromScale(-1, 1)) if mirrored else img
 
     def pixmap(self, frame, mirrored=False):
-        key = (frame.sheet, frame.rect, frame.under, mirrored)
+        key = (frame.sheet, frame.rect, frame.under, frame.over, mirrored)
         if key not in self._pixmaps:
             self._pixmaps[key] = QPixmap.fromImage(self.image(frame, mirrored))
         return self._pixmaps[key]
 
     def mask(self, frame, mirrored=False):
         """Région opaque de l'image, pour QWidget.setMask (clics traversants sous X11)."""
-        key = (frame.sheet, frame.rect, frame.under, mirrored)
+        key = (frame.sheet, frame.rect, frame.under, frame.over, mirrored)
         if key not in self._masks:
             img = self.pixmap(frame, mirrored).toImage()
             if img.hasAlphaChannel():

@@ -40,6 +40,18 @@ def test_menu_feeds_and_gives_milk(bank, tmp_path):
     assert app.pet._requests == ["drink"]
 
 
+def test_the_cupboard_fades_on_screen_after_the_meal(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.tick(1 / 30)
+    action(app, "Nourrir")[1](False)
+    for _ in range(40 * 30):
+        app.tick(1 / 30)
+        if app.pet.scene is None:
+            break
+    ghosts = [w for w in app.props.windows if (w.width(), w.height()) == (215, 117)]
+    assert len(ghosts) == 1 and ghosts[0].fade_ms <= 500
+
+
 def test_menu_shows_the_gauges(bank, tmp_path):
     app = make_app(bank, tmp_path)
     app.pet.needs.hunger, app.pet.needs.thirst = 0.8, 0.2

@@ -117,6 +117,36 @@ def test_frame_bounds_include_the_layers():
     assert frame_bounds(a.frames[0]) == (0, -44, 70, 10)  # cellule 10×10 + télé 10×10 en (60, -44)
 
 
+def test_compose_can_draw_a_layer_over_the_base():
+    data = compose_data()
+    data["animations"]["watch"]["compose"] = {"base": "cat", "over": "tv", "over_at": [3, 4]}
+    a = load_manifest(data, {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    assert len(a.frames) == 6 and a.frames[0].under == ()
+    assert [f.over[0][1][0] for f in a.frames] == [0, 0, 10, 10, 20, 20]
+    assert a.frames[0].over[0][2] == (3, 4)
+
+
+def test_compose_can_draw_layers_under_and_over_the_base():
+    data = compose_data(loop=False)
+    data["animations"]["watch"]["compose"].update({"over": "cat", "over_at": [1, 2]})
+    a = load_manifest(data, {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    f = a.frames[0]
+    assert f.under[0][2] == (60, -44) and f.over[0][2] == (1, 2)
+
+
+def test_one_shot_compose_can_follow_the_layer_drawn_over():
+    data = compose_data(loop=False)
+    data["animations"]["watch"]["compose"] = {"base": "cat", "under": "cat", "over": "tv", "length": "over"}
+    a = load_manifest(data, {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    assert len(a.frames) == 6  # la télé : 3 images à 3 i/s, soit 6 images à 6 i/s
+
+
+def test_frame_bounds_include_the_layers_drawn_over():
+    from felix.core.anim import Frame, frame_bounds
+    f = Frame(1, (0, 0, 10, 10), (5, 9), over=((2, (0, 0, 4, 4), (8, 9)),))
+    assert frame_bounds(f) == (0, 0, 12, 13)
+
+
 def test_compose_can_follow_the_base_length_and_shift_at_the_end():
     data = compose_data(loop=False)
     data["animations"]["watch"]["compose"]["length"] = "base"

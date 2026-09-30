@@ -70,8 +70,22 @@ def test_fishbowl_scene():
     snap = world()
     pet = settled_pet(snap)
     pet.request("fishbowl")
-    names, _ = run(pet, snap, 15)
-    assert "fishbowl" in names
+    names, _ = run(pet, snap, 30)
+    order = ["fishbowl", "fishbowl_watch", "fishbowl_lean", "fishbowl_nose", "fishbowl_back", "fishbowl_gaze",
+             "fishbowl_leave", "sit_up"]
+    assert [names.index(n) for n in order] == sorted(names.index(n) for n in order)
+    assert names.count("fishbowl_watch") * DT >= 3.4  # le poisson fait au moins un tour
+
+
+def test_the_fish_swims_in_its_bowl_while_the_cat_watches():
+    anims = make_anims()
+    for name, sheet, count in (("fishbowl_watch", 301, 28), ("fishbowl_nose", 302, 22), ("fishbowl_gaze", 301, 28)):
+        frames = anims[name].frames
+        assert len(frames) == count and anims[name].loop
+        assert {f.rect for f in frames} == {frames[0].rect}  # le chat, immobile
+        assert {f.over[0][0] for f in frames} == {sheet}
+        assert len({f.over[0][1] for f in frames}) == count  # le poisson, lui, nage
+        assert {f.over[0][2] for f in frames} == {(33, 58)}
 
 
 def test_mischief_happens_on_its_own():

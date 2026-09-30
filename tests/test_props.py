@@ -35,3 +35,11 @@ def test_sounds_are_not_props(qapp):
     props = PropManager(FakeBank(), lifetime=60)
     props.handle("meow")
     assert props.windows == []
+
+
+def test_ghost_event_shows_a_prop_that_fades_away_at_once(qapp):
+    props = PropManager(FakeBank(), lifetime=60)
+    props.handle(("ghost", (122, 2, 3, 30, 20), (500, 900)))
+    (w,) = props.windows
+    assert (w.x(), w.y(), w.width(), w.height()) == (500, 900, 30, 20)
+    assert w.lifetime < 0.5 and w.fade_ms <= 500  # juste le temps de voir la trame s'effacer

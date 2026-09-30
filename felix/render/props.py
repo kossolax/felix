@@ -1,4 +1,4 @@
-"""Accessoires laissés à l'écran par le chat (traces de pattes, griffures) : petites fenêtres
+"""Accessoires laissés à l'écran par le chat (traces de pattes, griffures, placard qui s'efface) : petites fenêtres
 transparentes, traversées par les clics, qui s'effacent en fondu."""
 import random
 import sys
@@ -9,10 +9,12 @@ from PySide6.QtWidgets import QWidget
 
 FADE_MS = 3000
 CLAW_WIDTH = 28
+GHOST_HOLD = 0.15  # s : fantôme tramé d'un accessoire qui disparaît (le placard)…
+GHOST_FADE_MS = 350  # … puis fondu
 
 
 class PropWindow(QWidget):
-    def __init__(self, pixmap, x, y, lifetime):
+    def __init__(self, pixmap, x, y, lifetime, fade_ms=FADE_MS):
         flags = (Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
                  | Qt.WindowType.WindowTransparentForInput | Qt.WindowType.WindowDoesNotAcceptFocus)
         if sys.platform.startswith("linux"):
@@ -21,6 +23,7 @@ class PropWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.pixmap = pixmap
+        self.lifetime, self.fade_ms = lifetime, fade_ms
         self.setGeometry(QRect(round(x), round(y), pixmap.width(), pixmap.height()))
         self._fade = None
         QTimer.singleShot(int(lifetime * 1000), self.fade_out)
@@ -36,7 +39,7 @@ class PropWindow(QWidget):
         if self._fade is not None:
             return
         self._fade = QPropertyAnimation(self, b"windowOpacity", self)
-        self._fade.setDuration(FADE_MS)
+        self._fade.setDuration(self.fade_ms)
         self._fade.setStartValue(1.0)
         self._fade.setEndValue(0.0)
         self._fade.finished.connect(self.close)
@@ -80,6 +83,10 @@ class PropManager:
             for (sheet, sx, sy, w, h), (x, y) in event[1]:
                 pix = QPixmap.fromImage(self.bank.sheets[sheet].copy(QRect(sx, sy, w, h)))
                 self._add(PropWindow(pix, x, y, self.lifetime))
+        elif kind == "ghost":
+            _, (sheet, sx, sy, w, h), (x, y) = event
+            pix = QPixmap.fromImage(self.bank.sheets[sheet].copy(QRect(sx, sy, w, h)))
+            self._add(PropWindow(pix, x, y, GHOST_HOLD, GHOST_FADE_MS))
         elif kind == "claws":
             _, x, top, bottom = event
             self._add(PropWindow(claw_pixmap(round(bottom - top), self.rng), x - CLAW_WIDTH / 2, top, self.lifetime))

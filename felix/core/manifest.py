@@ -4,8 +4,9 @@ Le manifeste ne contient que des coordonnées : la planche (grille colonnes×lig
 et, pour chaque animation, les cellules à jouer. Les ancrages (pieds) sont
 calculés à partir des boîtes englobantes opaques fournies par `bbox_of`.
 
-Une animation « compose » superpose deux animations déjà définies : `under` est dessinée
-sous `base`, décalée de `at`, chacune à sa propre cadence.
+Une animation « compose » superpose des animations déjà définies : `under` est dessinée
+sous `base`, décalée de `at`, et `over` par-dessus, décalée de `over_at`, chacune à sa
+propre cadence.
 """
 import math
 
@@ -100,23 +101,34 @@ def _ticks(anim, fps):
 def _compose(name, spec, anims, scale):
     c = spec["compose"]
     try:
-        base, under = anims[c["base"]], anims[c["under"]]
+        base = anims[c["base"]]
+        layers = {kind: anims[c[kind]] for kind in ("under", "over") if kind in c}
     except KeyError as exc:
         raise ValueError(f"{name} : animation {exc} inconnue") from exc
+    if not layers:
+        raise ValueError(f"{name} : ni « under » ni « over »")
     fps = spec.get("fps", base.fps)
     loop = spec.get("loop", False)
     if loop:
-        count = math.lcm(_ticks(base, fps), _ticks(under, fps))
-    else:  # animation unique : sa durée suit `under` (par défaut) ou `base`
-        count = _ticks(base if c.get("length") == "base" else under, fps)
-    layer_frames = list(reversed(under.frames)) if c.get("reverse") else list(under.frames)
-    at = (c["at"][0] * scale, c["at"][1] * scale)
+        count = math.lcm(_ticks(base, fps), *(_ticks(a, fps) for a in layers.values()))
+    else:  # animation unique : sa durée suit `length` (base, under ou over), par défaut la première couche
+        length = c.get("length")
+        count = _ticks(base if length == "base" else layers.get(length, next(iter(layers.values()))), fps)
+    offsets = {"under": c.get("at", (0, 0)), "over": c.get("over_at", (0, 0))}
+
+    def layer(kind, i):
+        if kind not in layers:
+            return ()
+        anim = layers[kind]
+        frames = list(reversed(anim.frames)) if kind == "under" and c.get("reverse") else list(anim.frames)
+        k = int(i * anim.fps / fps)
+        u = frames[k % len(frames) if loop or anim.loop else min(k, len(frames) - 1)]
+        return ((u.sheet, u.rect, (offsets[kind][0] * scale, offsets[kind][1] * scale)),)
+
     frames = []
     for i in range(count):
         b = base.frames[int(i * base.fps / fps) % len(base.frames)]
-        k = int(i * under.fps / fps)
-        u = layer_frames[k % len(layer_frames) if loop or under.loop else min(k, len(layer_frames) - 1)]
-        frames.append(Frame(b.sheet, b.rect, b.anchor, under=((u.sheet, u.rect, at),)))
+        frames.append(Frame(b.sheet, b.rect, b.anchor, under=layer("under", i), over=layer("over", i)))
     shift = (spec["exit"][0] * scale - frames[-1].anchor[0], 0) if "exit" in spec else (0, 0)
     return Animation(name=name, sheet=base.sheet, frames=tuple(frames), fps=fps, loop=loop,
                      facing=spec.get("facing", base.facing), shift=shift)

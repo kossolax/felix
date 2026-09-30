@@ -68,6 +68,20 @@ def test_layered_frame_is_composed_with_the_layer_underneath(qapp):
     assert img.pixelColor(0, 5).alpha() == 0
 
 
+def test_layer_drawn_over_the_frame_covers_it(qapp):
+    from felix.core.anim import Frame
+    cat = QImage(10, 10, QImage.Format.Format_ARGB32)
+    cat.fill(QColor(255, 0, 0, 255))
+    fish = QImage(4, 4, QImage.Format.Format_ARGB32)
+    fish.fill(QColor(0, 0, 255, 255))
+    bank = SpriteBank({1: cat, 2: fish}, {})
+    img = bank.pixmap(Frame(1, (0, 0, 10, 10), (5, 9), over=((2, (0, 0, 4, 4), (2, 2)),))).toImage()
+    assert (img.width(), img.height()) == (10, 10)
+    assert img.pixelColor(3, 3).getRgb() == (0, 0, 255, 255)  # le poisson par-dessus le chat
+    assert img.pixelColor(8, 8).getRgb() == (255, 0, 0, 255)
+    assert bank.pixmap(Frame(1, (0, 0, 10, 10), (5, 9))).toImage().pixelColor(3, 3).getRgb() == (255, 0, 0, 255)
+
+
 def test_plain_and_layered_versions_of_a_cell_are_cached_separately(qapp):
     from felix.core.anim import Frame
     cat = QImage(10, 10, QImage.Format.Format_ARGB32)
