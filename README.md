@@ -2,7 +2,7 @@
 
 Le chat de bureau de la fin des années 90 (*Felix II / Virtual Felix*, les ScreenMates offerts par Purina Felix), de retour sur **Linux (X11 et GNOME Wayland)** et **Windows 11**.
 
-Il entre par sa chatière, se promène sur la barre des tâches ou le dock, saute et grimpe sur les fenêtres et les suit quand on les déplace. Il regarde la souris, la chasse et lui donne des coups de patte. On peut le nourrir, lui servir du lait ou le caresser pour qu'il ronronne. Il fait aussi des bêtises : traces de pattes sur l'écran, griffures, bocal à poisson rouge, télé, pelote de laine.
+Il entre par sa chatière (et sort parfois se promener), se promène sur la barre des tâches ou le dock, saute et grimpe sur les fenêtres et les suit quand on les déplace. Il regarde la souris, la chasse et lui donne des coups de patte. On peut le nourrir, lui servir du lait ou le caresser pour qu'il ronronne. Il fait aussi des bêtises : traces de pattes sur l'écran, griffures, bocal à poisson rouge, télé, pelote de laine (qui roule, ou qui pend au bout de sa ficelle et qu'il attrape d'un bond). Sa boîte à jouets peut rester posée sur le bureau. Son humeur varie : fatigué, il somnole ; en forme, il fait des bêtises, sans répéter sans cesse la même chose.
 
 ## Téléchargement
 
@@ -54,7 +54,8 @@ Prenez le zip de la dernière release, dézippez-le, puis lancez `felix\felix.ex
 |---|---|
 | clic gauche sur le chat | caresse : il s'assoit et ronronne |
 | glisser le chat | on l'attrape ; relâché en l'air, il tombe (et prend peur si c'est haut) |
-| clic droit sur le chat | menu : Nourrir, Donner du lait, Jouer avec la pelote, Regarder la télé, jauges faim/soif, Rester immobile, Sons, Grande taille (×2), Vitesse, Lancer au démarrage, À propos, Quitter (le chat sort par sa chatière) |
+| clic droit sur le chat | menu : Nourrir, Donner du lait, Jouer avec la pelote, Regarder la télé, jauges faim/soif, Rester immobile, Sons, Boîte à jouets, Grande taille (×2), Vitesse, Lancer au démarrage, À propos, Quitter (le chat sort par sa chatière) |
+| boîte à jouets | glisser pour la déplacer ; clic droit : Jouer avec la pelote (le chat vient jouer près d'elle), Ranger la boîte à jouets |
 
 Le même menu est disponible dans la zone de notification quand le bureau en a une.
 

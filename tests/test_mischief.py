@@ -187,3 +187,15 @@ def test_yarn_sometimes_dangles_on_its_string_and_the_cat_leaps_for_it():
         if "yarn_roll_in" in names:
             variants.add("roule")
     assert variants == {"ficelle", "roule"}
+
+
+def test_a_request_can_ask_the_cat_to_play_near_a_spot():
+    snap = world()
+    pet = settled_pet(snap)
+    pet.body.x = 300
+    pet.request("yarn", near=1500)
+    for _ in range(int(40 / DT)):
+        view = pet.update(DT, snap)
+        if view.animation in ("yarn_roll_in", "string_leap"):
+            break
+    assert abs(pet.body.x - 1500) < 260

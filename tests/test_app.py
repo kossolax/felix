@@ -152,3 +152,32 @@ def test_quit_lets_the_cat_leave_through_its_flap_first(bank, tmp_path):
         if app.tick(1 / 30) is not None:
             seen.add(app.pet.player.animation.name)
     assert "exit_flap" in seen and app.quitting_done
+
+
+def test_toybox_can_be_shown_from_the_menu_and_is_remembered(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.tick(1 / 30)
+    assert not app.toybox.isVisible()
+    action(app, "Boîte à jouets")[1](True)
+    app.tick(1 / 30)
+    assert app.toybox.isVisible()
+    assert app.toybox.y() + app.toybox.height() == 1080  # posée sur le sol
+    again = make_app(bank, tmp_path)
+    again.tick(1 / 30)
+    assert again.toybox.isVisible() and again.toybox.center_x == app.toybox.center_x
+
+
+def test_playing_from_the_toybox_opens_it_until_the_game_ends(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    for _ in range(120):
+        app.tick(1 / 30)
+    action(app, "Boîte à jouets")[1](True)
+    app.toybox.on_play(app.toybox.center_x)
+    app.tick(1 / 30)
+    assert app.pet.scene == "yarn" and app.toybox._open
+    for _ in range(int(60 * 30)):
+        app.tick(1 / 30)
+        if app.pet.scene is None:
+            break
+    app.tick(1 / 30)
+    assert not app.toybox._open

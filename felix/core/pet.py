@@ -353,6 +353,7 @@ class Pet:
         self.temper = Temperament(self.rng)
         self._events = []
         self._requests = []
+        self._request_near = {}
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.gone = False  # sorti par la chatière (on peut fermer l'appli)
         self.away = False  # parti se promener dehors (invisible)
@@ -403,9 +404,12 @@ class Pet:
     def emit(self, event):
         self._events.append(event)
 
-    def request(self, what):
-        """Commande de l'utilisateur : 'feed' ou 'drink'. Interrompt ce que fait le chat."""
+    def request(self, what, near=None):
+        """Commande de l'utilisateur ('feed', 'drink', 'yarn'…). Interrompt ce que fait le chat.
+
+        `near` : abscisse où aller d'abord (par exemple la boîte à jouets)."""
         self._requests.append(what)
+        self._request_near[what] = near
         if (self.body is not None and self.scene is None and self.mode == "script"
                 and not getattr(self.action, "airborne", False)):
             self._run(self._brain())
@@ -584,6 +588,9 @@ class Pet:
         while True:
             if self._requests:
                 self.scene = self._requests.pop(0)
+                near = self._request_near.pop(self.scene, None)
+                if near is not None:
+                    yield from self._go_near(near)
                 yield from getattr(self, f"_do_{self.scene}")()
                 self.scene = None
                 continue
@@ -673,6 +680,16 @@ class Pet:
         yield Play("sit_down")
         yield Play("sit_front", duration=3.0, idle=True, event="meow")
         yield Play("sit_up")
+
+    def _go_near(self, x):
+        seg = self.body.support
+        if seg is None:
+            return
+        m = EDGE_MARGIN * self.k
+        target = min(max(x, seg.x0 + m), seg.x1 - m)
+        if abs(target - self.body.x) > 20:
+            yield from self._face("right" if target > self.body.x else "left")
+            yield WalkTo(target, idle=False)
 
     def _make_room(self, left, right):
         seg = self.body.support
