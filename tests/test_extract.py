@@ -35,3 +35,41 @@ def test_extract_also_writes_the_original_icon(tmp_path):
     launcher = build_pe({"EXE": {100: struct.pack("<I", len(inner)) + zlib.compress(inner)}})
     extract_images(launcher, tmp_path)
     assert (tmp_path / "felix.ico").read_bytes()[:4] == b"\0\0\1\0"
+
+
+def test_download_falls_back_to_the_next_source(tmp_path):
+    from felix.resources.extract import download
+    good = b"le vrai felix2.exe"
+    served = {"https://mort.example/felix2.exe": None,  # lien mort
+              "https://faux.example/felix2.exe": b"autre chose",  # mauvais contenu
+              "https://github.example/felix2.exe": good}
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        if served[url] is None:
+            raise OSError("404")
+        return served[url]
+
+    data = download(tmp_path / "felix2.exe", sources=list(served), sha256=hashlib.sha256(good).hexdigest(), fetch=fetch)
+    assert data == good and calls == list(served)
+    assert (tmp_path / "felix2.exe").read_bytes() == good
+
+
+def test_download_fails_clearly_when_every_source_fails(tmp_path):
+    from felix.resources.extract import download
+
+    def fetch(url):
+        raise OSError("hors ligne")
+
+    with pytest.raises(OSError, match="felix2.exe"):
+        download(tmp_path / "felix2.exe", sources=["https://a", "https://b"], sha256="0" * 64, fetch=fetch)
+
+
+def test_corrupted_cache_is_replaced_by_a_fresh_download(tmp_path):
+    from felix.resources.extract import download
+    good = b"le vrai felix2.exe"
+    cache = tmp_path / "felix2.exe"
+    cache.write_bytes(b"tronque")
+    data = download(cache, sources=["https://x"], sha256=hashlib.sha256(good).hexdigest(), fetch=lambda url: good)
+    assert data == good and cache.read_bytes() == good

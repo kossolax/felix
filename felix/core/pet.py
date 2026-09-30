@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from felix.core.anim import Frame, Player
 from felix.core.needs import Needs
 from felix.core.physics import GRAVITY, Body, step
-from felix.core.surfaces import compute_surfaces
+from felix.core.surfaces import compute_surfaces, support_at
 
 EDGE_MARGIN = 30
 JUMP_UP = 650
@@ -196,12 +196,22 @@ class Watch:
         return False
 
 
+def _window_under(pet, owner):
+    """Fenêtre `owner` si elle existe encore et se trouve sous le chat, sinon None."""
+    win = next((w for w in pet.snap.windows if w.id == owner), None)
+    if win is None or not (win.rect.x <= pet.body.x < win.rect.right):
+        return None
+    return win
+
+
 class Climb:
-    """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord)."""
+    """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord).
+
+    Suit la fenêtre si elle bouge ; si elle disparaît, le chat tombe."""
     airborne = True
 
-    def __init__(self, top):
-        self.top = top
+    def __init__(self, owner):
+        self.owner = owner
 
     def start(self, pet):
         pet.body.support = None
@@ -210,12 +220,16 @@ class Climb:
         pet.play("climb")
 
     def update(self, pet, dt):
+        win = _window_under(pet, self.owner)
+        if win is None:
+            pet._start_fall()
+            return False
         pet.player.update(dt)
-        target = self.top + CLIMB_TOP_DROP * pet.k
+        target = win.rect.y + CLIMB_TOP_DROP * pet.k
         pet.body.y = max(target, pet.body.y - CLIMB_SPEED * pet.k * dt)
         if pet.body.y > target:
             return False
-        pet.emit(("claws", pet.body.x, self.top + CLIMB_TOP_DROP * pet.k // 2, self.bottom))
+        pet.emit(("claws", pet.body.x, win.rect.y + CLIMB_TOP_DROP * pet.k // 2, self.bottom))
         return True
 
 
@@ -223,19 +237,30 @@ class ClimbTop:
     """Se hisse sur le bord et s'y assoit (de dos)."""
     airborne = True
 
-    def __init__(self, segment):
-        self.segment = segment
+    def __init__(self, owner):
+        self.owner = owner
 
     def start(self, pet):
-        pet.body.y = self.segment.y
+        win = _window_under(pet, self.owner)
+        if win is not None:
+            pet.body.y = win.rect.y
         pet.play("climb_top")
 
     def update(self, pet, dt):
+        win = _window_under(pet, self.owner)
+        if win is None:
+            pet._start_fall()
+            return False
+        pet.body.y = win.rect.y
         pet.player.update(dt)
         if not pet.player.finished:
             return False
-        pet.body.support = self.segment
-        pet.body.owner_rect = next((w.rect for w in pet.snap.windows if w.id == self.segment.owner), None)
+        seg = support_at(pet.segments, pet.body.x, pet.body.y, owner=self.owner)
+        if seg is None:  # bord caché par une autre fenêtre entre-temps
+            pet._start_fall()
+            return False
+        pet.body.support = seg
+        pet.body.owner_rect = win.rect
         pet.shift(pet.player.animation.shift)
         self.airborne = False
         return True
@@ -298,6 +323,7 @@ class Pet:
         self._events = []
         self._requests = []
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
+        self.gone = False  # sorti par la chatière (on peut fermer l'appli)
         self.body = None
         self.facing = "right"
         self.mode = "script"
@@ -351,6 +377,23 @@ class Pet:
         if (self.body is not None and self.scene is None and self.mode == "script"
                 and not getattr(self.action, "airborne", False)):
             self._run(self._brain())
+
+    def leave(self):
+        """Le chat s'en va par sa chatière ; `gone` passe à True une fois sorti."""
+        self._requests.clear()
+        if (self.body is None or self.mode != "script" or not self.body.grounded
+                or getattr(self.action, "airborne", False)):
+            self.gone = True
+            return
+        self.scene = "leave"
+        self._run(self._leaving())
+
+    def _leaving(self):
+        yield from self._face("right")
+        yield Play("exit_flap")
+        self.gone = True
+        while True:
+            yield Hold("exit_flap", -1, 3600, idle=False)
 
     def stroke(self):
         """Caresse (clic sans glisser) : le chat s'assoit et ronronne."""
@@ -428,12 +471,25 @@ class Pet:
         if self.body is None:
             self._spawn()
         self.needs.tick(dt)
-        hidden = bool(snap.windows) and snap.windows[0].fullscreen
+        hidden = self._under_fullscreen(snap)
         if not hidden:
             self._update(dt)
         events, self._events = tuple(self._events), []
         return View(self.player.animation.name, self.player.frame, self.body.x, self.body.y,
                     self.mirrored, hidden, events)
+
+    def _under_fullscreen(self, snap):
+        """La fenêtre du dessus, sur l'écran du chat, est-elle en plein écran (vidéo, jeu…) ?"""
+        mons = [m.geometry for m in snap.monitors]
+        if not mons or not snap.windows:
+            return False
+        x, y = self.body.x, self.body.y - 1
+        mon = next((g for g in mons if g.contains(x, y)), None) or min(mons, key=lambda g: g.distance2(x, y))
+        for w in snap.windows:
+            r = w.rect
+            if r.x < mon.right and mon.x < r.right and r.y < mon.bottom and mon.y < r.bottom:
+                return w.fullscreen
+        return False
 
     def _update(self, dt):
         if self.mode == "held":
@@ -671,8 +727,8 @@ class Pet:
         target = self._climb_target_at(target)
         if target is None:
             return
-        yield Climb(target.y)
-        yield ClimbTop(target)
+        yield Climb(target.owner)
+        yield ClimbTop(target.owner)
         yield Play("sit_back", duration=self.rng.uniform(3, 6), idle=True)
         yield Play("sit_back_up")
 

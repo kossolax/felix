@@ -131,14 +131,17 @@ class X11Backend(PollingBackend):
 
     def _loop(self):
         """Relit l'état à chaque changement signalé par le serveur X, et au moins toutes les SAFETY s."""
-        self.reader.watch()
-        while not self._stop.is_set():
-            try:
-                self._native = self.reader.read()
-                self._ready.set()
-            except Exception:
-                log.exception("lecture X11")
-            if self.reader.wait_for_change(min(self.interval, SAFETY), self._stop):
-                self._stop.wait(COALESCE)
-                self.reader.drain()
-        self.reader.close()
+        try:
+            self.reader.watch()
+            while not self._stop.is_set():
+                self._read_once()
+                if self.reader.wait_for_change(min(self.interval, SAFETY), self._stop):
+                    self._stop.wait(COALESCE)
+                    self.reader.drain()
+        except Exception:
+            log.exception("connexion X11 perdue : le chat garde un état minimal")
+        finally:
+            self.reader.close()
+
+    def read_native(self):
+        return self.reader.read()

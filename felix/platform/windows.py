@@ -17,6 +17,7 @@ dwmapi = ctypes.WinDLL("dwmapi")
 
 DWMWA_EXTENDED_FRAME_BOUNDS = 9
 DWMWA_CLOAKED = 14
+GWL_STYLE = -16
 GWL_EXSTYLE = -20
 HWND_TOPMOST = wt.HWND(-1)
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
@@ -79,6 +80,7 @@ def window_infos():
         user32.GetClassNameW(hwnd, cls, 256)
         infos.append(WinInfo(
             hwnd=hwnd, rect=_rect(rect), pid=pid.value, cls=cls.value,
+            style=user32.GetWindowLongPtrW(hwnd, GWL_STYLE) & 0xFFFFFFFF,
             exstyle=user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & 0xFFFFFFFF,
             visible=True, iconic=bool(user32.IsIconic(hwnd)), cloaked=bool(cloaked.value)))
     return infos

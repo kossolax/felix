@@ -1,12 +1,12 @@
 from felix.core.world import Rect, WinRect
-from felix.platform.windows_parse import (WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WinInfo,
-                                          filter_windows)
+from felix.platform.windows_parse import (WS_CAPTION, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+                                          WinInfo, filter_windows)
 
 MONITORS = [Rect(0, 0, 1920, 1080)]
 
 
 def info(hwnd, rect, **kw):
-    defaults = dict(pid=100, cls="Notepad", exstyle=0, visible=True, iconic=False, cloaked=False)
+    defaults = dict(pid=100, cls="Notepad", style=0, exstyle=0, visible=True, iconic=False, cloaked=False)
     defaults.update(kw)
     return WinInfo(hwnd=hwnd, rect=rect, **defaults)
 
@@ -48,3 +48,9 @@ def test_window_covering_a_whole_monitor_is_fullscreen():
     infos = [info(1, Rect(0, 0, 1920, 1080)), info(2, Rect(0, 0, 1920, 1040))]
     out = filter_windows(infos, own_pid=1, monitors=MONITORS)
     assert [(w.id, w.fullscreen) for w in out] == [(1, True), (2, False)]
+
+
+def test_a_maximized_window_with_a_title_bar_is_not_fullscreen():
+    # barre des tâches masquée automatiquement : la fenêtre maximisée couvre tout l'écran
+    infos = [info(1, Rect(0, 0, 1920, 1080), style=WS_CAPTION)]
+    assert filter_windows(infos, own_pid=1, monitors=MONITORS)[0].fullscreen is False

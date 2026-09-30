@@ -37,8 +37,21 @@ def _subtract(intervals, a, b):
     return out
 
 
+def _floors(monitors):
+    """Bas des zones utiles ; ceux d'écrans voisins à la même hauteur ne forment qu'un sol."""
+    floors = []
+    for m in sorted(monitors, key=lambda m: (m.workarea.bottom, m.workarea.x)):
+        wa = m.workarea
+        last = floors[-1] if floors else None
+        if last and last.y == wa.bottom and last.x1 >= wa.x:
+            floors[-1] = Segment(last.y, last.x0, max(last.x1, wa.right), None)
+        else:
+            floors.append(Segment(wa.bottom, wa.x, wa.right, None))
+    return floors
+
+
 def compute_surfaces(snap):
-    segs = [Segment(m.workarea.bottom, m.workarea.x, m.workarea.right, None) for m in snap.monitors]
+    segs = _floors(snap.monitors)
     windows = snap.windows
     for i, win in enumerate(windows):
         r = win.rect

@@ -6,6 +6,7 @@ from felix.core.world import Rect, WinRect
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 WS_EX_TRANSPARENT = 0x00000020
+WS_CAPTION = 0x00C00000
 
 SHELL_CLASSES = {
     "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd",
@@ -20,6 +21,7 @@ class WinInfo:
     rect: Rect  # DWMWA_EXTENDED_FRAME_BOUNDS, px physiques
     pid: int
     cls: str
+    style: int
     exstyle: int
     visible: bool
     iconic: bool
@@ -43,5 +45,9 @@ def filter_windows(infos, own_pid, monitors):
             continue
         if w.rect.w < MIN_W or w.rect.h < MIN_H:
             continue
-        out.append(WinRect(w.hwnd, w.rect, any(_covers(w.rect, m) for m in monitors)))
+        # plein écran : couvre tout un moniteur ET sans barre de titre (une fenêtre maximisée
+        # couvre aussi l'écran quand la barre des tâches se masque automatiquement)
+        has_caption = (w.style & WS_CAPTION) == WS_CAPTION
+        fullscreen = not has_caption and any(_covers(w.rect, m) for m in monitors)
+        out.append(WinRect(w.hwnd, w.rect, fullscreen))
     return out

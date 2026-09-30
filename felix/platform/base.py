@@ -1,6 +1,7 @@
 """Interface commune des backends de plateforme."""
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -77,11 +78,14 @@ class PollingBackend:
     """Lit l'état natif dans un thread (read_native), le convertit en coordonnées Qt dans snapshot()."""
     name = "polling"
 
-    def __init__(self, interval=0.2, logical_monitors=qt_logical_monitors, cursor=True):
+    def __init__(self, interval=0.2, logical_monitors=qt_logical_monitors, cursor=True, stale_after=3.0):
         self.interval = interval
         self._logical_monitors = logical_monitors
         self._cursor = cursor
+        self.stale_after = stale_after  # sans lecture réussie depuis ce délai : état minimal
         self._native = None
+        self._last_ok = None
+        self._failing = False
         self._ready = threading.Event()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name=f"felix-{self.name}", daemon=True)
@@ -96,13 +100,27 @@ class PollingBackend:
     def close_native(self):
         pass
 
+    def _read_once(self):
+        """Une lecture ; les échecs sont journalisés une fois par série, pas à chaque tour."""
+        try:
+            self._native = self.read_native()
+        except Exception:
+            if not self._failing:
+                log.warning("lecture %s impossible (état minimal en attendant)", self.name, exc_info=True)
+                self._failing = True
+            return
+        if self._failing:
+            log.info("lecture %s rétablie", self.name)
+            self._failing = False
+        self._last_ok = time.monotonic()
+        self._ready.set()
+
+    def _stale(self):
+        return self._last_ok is None or time.monotonic() - self._last_ok > self.stale_after
+
     def _loop(self):
         while not self._stop.is_set():
-            try:
-                self._native = self.read_native()
-                self._ready.set()
-            except Exception:
-                log.exception("lecture %s", self.name)
+            self._read_once()
             self._stop.wait(self.interval)
         self.close_native()
 
@@ -116,7 +134,7 @@ class PollingBackend:
             pos = QCursor.pos()
             cursor = (pos.x(), pos.y())
         native = self._native
-        if native is None:
+        if native is None or self._stale():
             from felix.platform.degraded import qt_monitors
             return WorldSnapshot(monitors=qt_monitors(), cursor=cursor)
         logical = self._logical_monitors()

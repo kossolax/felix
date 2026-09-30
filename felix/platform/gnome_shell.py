@@ -9,7 +9,7 @@ scène GNOME (logiques) ; CoordMapper les aligne sur les écrans vus par Qt.
 import json
 import os
 
-from jeepney import DBusAddress, new_method_call
+from jeepney import DBusAddress, MessageType, new_method_call
 from jeepney.io.blocking import open_dbus_connection
 
 from felix.core.world import Rect, WinRect, WorldSnapshot
@@ -46,9 +46,10 @@ def helper_available():
 class GnomeShellBackend(PollingBackend):
     name = "gnome_shell"
 
-    def __init__(self, interval=1 / 15, logical_monitors=qt_logical_monitors):
-        super().__init__(interval, logical_monitors, cursor=False)
-        self.conn = open_dbus_connection(bus="SESSION")
+    def __init__(self, interval=1 / 15, logical_monitors=qt_logical_monitors,
+                 connect=lambda: open_dbus_connection(bus="SESSION"), stale_after=1.0):
+        super().__init__(interval, logical_monitors, cursor=False, stale_after=stale_after)
+        self.conn = connect()
         self.pid = os.getpid()
         self._turn = 0
         self._state = None
@@ -57,10 +58,15 @@ class GnomeShellBackend(PollingBackend):
 
     def _call(self, method, signature=None, body=()):
         msg = new_method_call(HELPER, method, signature, body)
-        return self.conn.send_and_get_reply(msg, timeout=TIMEOUT).body
+        reply = self.conn.send_and_get_reply(msg, timeout=TIMEOUT)
+        if reply.header.message_type == MessageType.error:
+            # extension désactivée (écran verrouillé, désinstallée…) : jeepney ne lève pas
+            raise RuntimeError(f"{method} : {reply.body[0] if reply.body else 'erreur D-Bus'}")
+        return reply.body
 
     def read_native(self):
-        self._pointer = tuple(self._call("GetPointer"))
+        x, y = self._call("GetPointer")
+        self._pointer = (int(x), int(y))
         if self._state is None or self._turn % STATE_EVERY == 0:
             self._state = parse_state(self._call("GetState", "u", (self.pid,))[0])
         self._turn += 1
@@ -72,7 +78,7 @@ class GnomeShellBackend(PollingBackend):
     def snapshot(self):
         snap = super().snapshot()
         native, pointer = self._native, self._pointer
-        if native is None or pointer is None:
+        if native is None or pointer is None or self._stale():
             return snap
         logical = self._logical_monitors()
         mapper = CoordMapper(native.monitors, logical if len(logical) == len(native.monitors) else native.monitors)

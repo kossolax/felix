@@ -85,3 +85,10 @@ def test_stroking_the_cat_makes_it_sit_and_purr():
     names, events = run(pet, 6)
     assert "purr" in events
     assert "sit_front" in names
+
+
+def test_leaving_goes_out_through_the_cat_flap():
+    pet = settled_pet()
+    pet.leave()
+    names, _ = run(pet, 5)
+    assert "exit_flap" in names and pet.gone

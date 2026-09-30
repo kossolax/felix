@@ -21,27 +21,46 @@ def parse_args(argv):
 
 
 def ensure_sprites(interactive):
+    """Graphismes d'origine : déjà extraits, sinon téléchargés (archive.org / GitHub) ou pris d'un fichier."""
     from felix.paths import find_sprites_dir, user_data_dir
     found = find_sprites_dir()
     if found or not interactive:
         return found
-    from PySide6.QtWidgets import QApplication, QMessageBox
     from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+    from felix.resources.extract import SOURCE_SHA256, download, extract_images, verify_sha256
     target = user_data_dir() / "original"
-    answer = QMessageBox.question(
-        None, "Felix",
-        "Les graphismes d'origine de Felix ne sont pas encore installés.\n\n"
-        "Les télécharger depuis archive.org (felix2.exe, 758 Ko) et les extraire dans\n"
-        f"{target} ?")
-    if answer != QMessageBox.StandardButton.Yes:
-        return None
-    from felix.resources.extract import download, extract_images
-    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-    try:
-        extract_images(download(user_data_dir() / "cache" / "felix2.exe"), target)
-    finally:
-        QApplication.restoreOverrideCursor()
-    return find_sprites_dir()
+    while True:
+        box = QMessageBox(QMessageBox.Icon.Question, "Felix",
+                          "Les graphismes d'origine de Felix ne sont pas encore installés.\n\n"
+                          "Felix peut télécharger l'exécutable d'origine (felix2.exe, 758 Ko) depuis archive.org "
+                          "ou la copie du projet sur GitHub, ou utiliser un felix2.exe que vous avez déjà.\n\n"
+                          f"Les images seront extraites dans {target}.")
+        fetch = box.addButton("Télécharger", QMessageBox.ButtonRole.AcceptRole)
+        pick = box.addButton("Choisir felix2.exe…", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        try:
+            if box.clickedButton() is fetch:
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+                try:
+                    data = download(user_data_dir() / "cache" / "felix2.exe")
+                finally:
+                    QApplication.restoreOverrideCursor()
+            elif box.clickedButton() is pick:
+                path, _ = QFileDialog.getOpenFileName(None, "felix2.exe d'origine", "", "Programme (*.exe)")
+                if not path:
+                    continue
+                with open(path, "rb") as fh:
+                    data = fh.read()
+                verify_sha256(data, SOURCE_SHA256)
+            else:
+                return None
+            extract_images(data, target)
+            return find_sprites_dir()
+        except (OSError, ValueError) as exc:
+            logging.getLogger("felix").warning("graphismes : %s", exc)
+            QMessageBox.warning(None, "Felix", f"Échec :\n{exc}\n\nEssayez un autre moyen.")
 
 
 def create_backend(name, session):
@@ -125,6 +144,9 @@ def main(argv=None):
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("felix")
+    from felix.paths import ROOT
+    from PySide6.QtGui import QIcon
+    app.setWindowIcon(QIcon(str(ROOT / "assets" / "icon" / "felix.png")))
     app.setQuitOnLastWindowClosed(False)
 
     backend = create_backend(choose_backend(session, args.backend, gnome_helper_available(session)), session)

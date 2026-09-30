@@ -120,3 +120,16 @@ def test_a_bigger_cat_has_its_head_higher():
     for pet in (small, big):
         pet.update(DT, world())
     assert (big.body.y - big.head()[1]) == 2 * (small.body.y - small.head()[1])
+
+
+def test_fullscreen_on_another_monitor_does_not_hide_the_cat():
+    left = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080))
+    right = Monitor(Rect(1920, 0, 1920, 1080), Rect(1920, 0, 1920, 1080))
+    video = WinRect(7, Rect(1920, 0, 1920, 1080), fullscreen=True)
+    pet = new_pet()
+    snap = WorldSnapshot(monitors=(left, right), windows=(video,))
+    pet.update(DT, snap)
+    pet.body.x = 500  # sur l'écran de gauche
+    assert not pet.update(DT, snap).hidden
+    pet.body.x = 2500  # sur l'écran de droite, sous la vidéo
+    assert pet.update(DT, snap).hidden

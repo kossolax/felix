@@ -8,7 +8,7 @@ from PySide6.QtCore import QElapsedTimer, QObject, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
-from felix import autostart
+from felix import __version__, autostart
 from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.render.pet_window import PetWindow
@@ -21,6 +21,8 @@ MAX_DT = 0.1
 TOPMOST_MS = 2000
 UPGRADE_MS = 5000
 SAVE_MS = 60_000
+LEAVE_TIMEOUT = 8.0  # s : on ferme même si le chat n'a pas pu passer sa chatière
+SPEEDS = {"Vitesse lente": 0.6, "Vitesse normale": 1.0, "Vitesse rapide": 1.6}
 DRAG_THRESHOLD = 6  # px : en dessous, un clic est une caresse
 
 
@@ -36,6 +38,13 @@ class FelixApp(QObject):
         self.pet = Pet(bank.animations, rng, needs=self._load_needs(), scale=bank.scale)
         self.window = PetWindow(bank)
         self._last_animation = None
+        self._quitting = False
+        self._quit_elapsed = 0.0
+        self.quitting_done = False
+        try:
+            self.speed = float(self.settings.value("speed", 1.0))
+        except (TypeError, ValueError):
+            self.speed = 1.0
         self._press = None  # point d'appui tant qu'on n'a pas vraiment tiré le chat
         self.window.grabbed.connect(self._on_press)
         self.window.dragged.connect(self._on_drag)
@@ -107,6 +116,16 @@ class FelixApp(QObject):
         self.window.set_bank(self.bank)
         self.pet.set_animations(self.bank.animations, scale)
 
+    def set_speed(self, factor):
+        self.speed = factor
+        self.settings.setValue("speed", factor)
+
+    def request_quit(self):
+        """Quitter : le chat sort d'abord par sa chatière."""
+        if not self._quitting:
+            self._quitting = True
+            self.pet.leave()
+
     def set_sound(self, on):
         if self.sound is not None:
             self.sound.enabled = on
@@ -133,6 +152,12 @@ class FelixApp(QObject):
     def tick(self, dt=None):
         if dt is None:
             dt = min(self.clock.restart() / 1000.0, MAX_DT)
+        if self._quitting:
+            self._quit_elapsed += dt
+            if self.pet.gone or self._quit_elapsed > LEAVE_TIMEOUT:
+                self.quit()
+                return None
+        dt *= self.speed
         snap = self.backend.snapshot()
         view = self.pet.update(dt, snap)
         if view.animation != self._last_animation:
@@ -175,12 +200,14 @@ class FelixApp(QObject):
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
             ("Sons", self.set_sound, self.sound.enabled if self.sound is not None else False),
             ("Grande taille (×2)", self.set_scale, self.bank.scale == 2),
+            *[(label, (lambda _=False, f=factor: self.set_speed(f)), self.speed == factor)
+              for label, factor in SPEEDS.items()],
             ("Lancer au démarrage", autostart.set_enabled, autostart.is_enabled()),
             None,
             ("Débogage", self.toggle_debug, self.overlay is not None),
             ("À propos…", lambda _=False: self.show_about(), None),
             None,
-            ("Quitter", lambda _=False: self.quit(), None),
+            ("Quitter", lambda _=False: self.request_quit(), None),
         ]
 
     def _make_tray(self):
@@ -194,7 +221,7 @@ class FelixApp(QObject):
         self.tray.show()
 
     def about_text(self):
-        return ("<b>Virtual Felix</b> — le chat de bureau, de retour sur Linux et Windows.<br><br>"
+        return (f"<b>Virtual Felix {__version__}</b> — le chat de bureau, de retour sur Linux et Windows.<br><br>"
                 "Graphismes : <i>Felix II / Virtual Felix</i> (ScreenMates, AdTools et Ogilvy pour Purina "
                 "Felix, 1999-2000), extraits de l'exécutable d'origine conservé sur archive.org, pour un "
                 "usage personnel.<br>"
@@ -228,6 +255,7 @@ class FelixApp(QObject):
         menu.exec(pos)
 
     def quit(self):
+        self.quitting_done = True
         self.save()
         self.timer.stop()
         if self.tray is not None:

@@ -52,3 +52,17 @@ def test_landing_is_the_highest_segment_crossed_while_falling():
     assert landing_between(segs, 150, 100, 700) == segs[2]
     assert landing_between(segs, 150, 301, 700) == segs[1]
     assert landing_between(segs, 700, 100, 700) is None
+
+
+def test_floors_of_side_by_side_monitors_form_one_walkway():
+    left = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1040))
+    right = Monitor(Rect(1920, 0, 1920, 1080), Rect(1920, 0, 1920, 1040))
+    floors = [s for s in compute_surfaces(WorldSnapshot(monitors=(left, right))) if s.owner is None]
+    assert floors == [Segment(1040, 0, 3840, None)]
+
+
+def test_floors_at_different_heights_stay_separate():
+    left = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080))
+    right = Monitor(Rect(1920, 0, 1280, 1024), Rect(1920, 0, 1280, 1024))
+    floors = [s for s in compute_surfaces(WorldSnapshot(monitors=(left, right))) if s.owner is None]
+    assert len(floors) == 2

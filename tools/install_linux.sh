@@ -22,6 +22,7 @@ for arg in "$@"; do
 done
 
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || { echo "Python 3.10 ou plus requis." >&2; exit 1; }
+python3 -c 'import ensurepip, venv' 2>/dev/null || { echo "Installez d'abord : sudo apt install python3-venv" >&2; exit 1; }
 if command -v dpkg > /dev/null && ! dpkg -s libxcb-cursor0 > /dev/null 2>&1; then
     echo "Qt 6 a besoin de libxcb-cursor0 :  sudo apt install libxcb-cursor0"
 fi
@@ -49,7 +50,7 @@ cat > "$APPS/virtual-felix.desktop" <<EOF
 Type=Application
 Name=Virtual Felix
 Comment=Le chat de bureau
-Exec=$ROOT/venv/bin/python -m felix
+Exec="$ROOT/venv/bin/python" -m felix
 Path=$ROOT
 Icon=$ICON
 Categories=Amusement;

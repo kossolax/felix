@@ -129,3 +129,26 @@ def test_tray_menu_mirrors_the_cat_menu(bank, tmp_path):
     app.fill_menu(menu)
     labels = [a.text() for a in menu.actions() if not a.isSeparator()]
     assert labels[:2] == ["Nourrir", "Donner du lait"] and labels[-1] == "Quitter"
+
+
+def test_speed_setting_scales_time_and_is_remembered(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.tick(0.03)
+    before = app.pet.clock
+    action(app, "Vitesse rapide")[1](True)
+    app.tick(0.03)
+    assert app.pet.clock - before == pytest.approx(0.03 * 1.6)
+    assert float(app.settings.value("speed")) == pytest.approx(1.6)
+
+
+def test_quit_lets_the_cat_leave_through_its_flap_first(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    for _ in range(150):
+        app.tick(1 / 30)
+    app.request_quit()
+    assert app.pet.scene == "leave" and not app.quitting_done  # (il peut d'abord se retourner)
+    seen = set()
+    for _ in range(150):
+        if app.tick(1 / 30) is not None:
+            seen.add(app.pet.player.animation.name)
+    assert "exit_flap" in seen and app.quitting_done

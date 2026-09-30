@@ -101,3 +101,42 @@ def test_cat_walks_under_a_high_window_before_climbing_it():
     names, _ = run(pet, snap, 40)
     assert "climb" in names
     assert pet.body.support is not None and pet.body.support.owner == 9
+
+
+def test_closing_the_window_during_the_climb_makes_the_cat_fall():
+    high = WinRect(9, Rect(500, 250, 900, 600))
+    snap = world(high)
+    pet = settled_pet(snap, seed=1)
+    pet.body.x = 900
+    pet.request("climb")
+    names, events = [], []
+    for _ in range(int(20 / DT)):
+        view = pet.update(DT, snap)
+        names.append(view.animation)
+        events.extend(view.events)
+        if view.animation == "climb":
+            break
+    for _ in range(15):  # grimpe un peu…
+        pet.update(DT, snap)
+    empty = world()  # …et la fenêtre se ferme
+    after, events = run(pet, empty, 5)
+    assert "climb_top" not in after
+    assert not [e for e in events if isinstance(e, tuple) and e[0] == "claws"]
+    assert pet.body.grounded and pet.body.y == 1080
+
+
+def test_a_window_moved_during_the_climb_is_followed():
+    snap = world(WinRect(9, Rect(500, 250, 900, 600)))
+    pet = settled_pet(snap, seed=1)
+    pet.body.x = 900
+    pet.request("climb")
+    for _ in range(int(20 / DT)):
+        if pet.update(DT, snap).animation == "climb":
+            break
+    moved = world(WinRect(9, Rect(500, 400, 900, 600)))  # le haut descend de 150 px
+    landed = False
+    for _ in range(int(20 / DT)):
+        view = pet.update(DT, moved)
+        s = pet.body.support
+        landed |= s is not None and s.owner == 9 and pet.body.y == 400 and view.animation.startswith("sit_back")
+    assert landed

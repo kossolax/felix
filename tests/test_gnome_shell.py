@@ -31,3 +31,50 @@ def test_parse_state_sorts_monitors_in_layout_order():
         {"geometry": [0, 0, 1920, 1080], "workarea": [0, 0, 1920, 1080]},
     ], "windows": []})
     assert parse_state(payload).monitors == [Rect(0, 0, 1920, 1080), Rect(1920, 0, 1280, 1024)]
+
+
+class Reply:
+    def __init__(self, body, error=False):
+        from jeepney import MessageType
+        self.body = body
+        self.header = type("H", (), {"message_type": MessageType.error if error else MessageType.method_return})()
+
+
+class FakeConn:
+    """Bus de session factice : l'extension répond, puis disparaît (écran verrouillé)."""
+
+    def __init__(self):
+        self.gone = False
+
+    def send_and_get_reply(self, msg, timeout=None):
+        if self.gone:
+            return Reply(("The name io.github.felix.Helper was not provided by any .service files",), error=True)
+        if msg.header.fields[3] == "GetPointer":  # 3 = MEMBER
+            return Reply((400, 300))
+        return Reply((json.dumps({"monitors": [{"geometry": [0, 0, 1600, 900], "workarea": [0, 0, 1600, 900]}],
+                                  "windows": [{"id": 1, "rect": [10, 20, 300, 200]}]}),))
+
+    def close(self):
+        pass
+
+
+def test_backend_survives_the_extension_disappearing(qapp):
+    import time
+    from felix.platform import gnome_shell
+    conn = FakeConn()
+    backend = gnome_shell.GnomeShellBackend(interval=0.02, logical_monitors=lambda: [Rect(0, 0, 1600, 900)],
+                                           connect=lambda: conn, stale_after=0.2)
+    try:
+        assert backend.wait_ready(2)
+        time.sleep(0.1)
+        snap = backend.snapshot()
+        assert snap.cursor == (400, 300) and snap.windows[0].id == 1
+        conn.gone = True
+        time.sleep(0.4)
+        snap = backend.snapshot()  # ne doit pas lever
+        assert snap.cursor is None and snap.windows == ()
+        conn.gone = False
+        time.sleep(0.2)
+        assert backend.snapshot().cursor == (400, 300)  # l'extension revient : tout repart
+    finally:
+        backend.stop()
