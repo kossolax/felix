@@ -58,6 +58,9 @@ def load_manifest(data, sheet_sizes, bbox_of):
             raise ValueError(f"{name} : image hors de la grille {cols}×{rows}")
         rects = [((i % cols) * cw, (i // cols) * ch, cw, ch) for i in indices]
         anchors = _anchors(spec.get("anchor", "fixed"), [bbox_of(sid, r) for r in rects], (cw, ch))
+        shift = tuple(spec.get("shift", (0, 0)))
+        if "exit" in spec:  # pieds du chat sur la dernière image : la position le rejoint à la fin
+            shift = (spec["exit"][0] - anchors[-1][0], 0)
         anims[name] = Animation(
             name=name,
             sheet=sid,
@@ -66,6 +69,6 @@ def load_manifest(data, sheet_sizes, bbox_of):
             loop=spec.get("loop", False),
             dx=spec.get("dx", 0),
             facing=spec.get("facing", "front"),
-            shift=tuple(spec.get("shift", (0, 0))),
+            shift=shift,
         )
     return anims

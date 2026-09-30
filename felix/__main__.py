@@ -16,6 +16,7 @@ def parse_args(argv):
     p.add_argument("--probe", action="store_true", help="affiche l'état vu par le backend (JSON) et quitte")
     p.add_argument("--selftest", action="store_true", help="fait tourner l'appli sans affichage réel et quitte")
     p.add_argument("--seed", type=int, help="graine du hasard (reproductibilité)")
+    p.add_argument("--demo", default="", help=argparse.SUPPRESS)  # ex. feed,drink : scènes lancées au démarrage
     return p.parse_args(argv)
 
 
@@ -156,6 +157,8 @@ def main(argv=None):
         code = selftest(felix)
         backend.stop()
         return code
+    for scene in filter(None, args.demo.split(",")):
+        felix.pet.request(scene)
     felix.start()
     return app.exec()
 

@@ -58,3 +58,10 @@ def test_grid_must_divide_the_sheet():
     data = {"sheets": {"1": [3, 1]}, "animations": {}}
     with pytest.raises(ValueError, match="1"):
         load_manifest(data, {1: (20, 20)}, bbox_all)
+
+
+def test_exit_point_becomes_the_end_shift_relative_to_the_anchor():
+    data = {"sheets": {"1": [1, 1]},
+            "animations": {"scene": {"sheet": 1, "frames": "0", "anchor": [80, 120], "exit": [30, 118]}}}
+    a = load_manifest(data, {1: (200, 130)}, bbox_all)["scene"]
+    assert a.shift == (-50, 0)

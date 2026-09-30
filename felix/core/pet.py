@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass
 
 from felix.core.anim import Frame, Player
+from felix.core.needs import Needs
 from felix.core.physics import GRAVITY, Body, step
 from felix.core.surfaces import compute_surfaces
 
@@ -32,6 +33,9 @@ HUNT_COOLDOWN = 20.0
 BORED_AFTER = 8.0  # un curseur immobile depuis ce temps n'intéresse plus
 PREY_FRESH = 20.0  # une proie immobile depuis plus longtemps n'est plus chassée
 CURSOR_JITTER = 3
+FEED_ROOM = (45, 110)  # place nécessaire à gauche / à droite du chat pour le placard
+DRINK_ROOM = (80, 125)  # … pour la bouteille de lait
+EAT_TIME = 4.0
 
 
 @dataclass
@@ -42,6 +46,7 @@ class View:
     y: float
     mirrored: bool = False
     hidden: bool = False
+    events: tuple = ()  # sons à jouer : meow, purr, crunch, lap…
 
 
 def direction_to(hx, hy, cx, cy):
@@ -63,16 +68,19 @@ class Play:
     """
     airborne = False
 
-    def __init__(self, name, duration=None, mirrored=False, idle=False):
+    def __init__(self, name, duration=None, mirrored=False, idle=False, event=None):
         self.name = name
         self.duration = duration
         self.mirrored = mirrored
         self.idle = idle
+        self.event = event
 
     def start(self, pet):
         pet.play(self.name, self.mirrored)
         self.elapsed = 0.0
         self.frames = 0
+        if self.event:
+            pet.emit(self.event)
 
     def update(self, pet, dt):
         if self.idle and pet.cursor_near():
@@ -93,16 +101,16 @@ class Play:
 class Hold(Play):
     """Reste figé sur une image d'une animation."""
 
-    def __init__(self, name, index, duration):
-        super().__init__(name, duration, idle=True)
+    def __init__(self, name, index, duration, idle=True, event=None):
+        super().__init__(name, duration, idle=idle, event=event)
         self.index = index
 
     def start(self, pet):
         super().start(pet)
-        pet.player.index = self.index
+        pet.player.index = self.index if self.index >= 0 else len(pet.player.animation.frames) + self.index
 
     def update(self, pet, dt):
-        if pet.cursor_near():
+        if self.idle and pet.cursor_near():
             return True
         self.elapsed += dt
         return self.elapsed >= self.duration
@@ -220,12 +228,17 @@ class Jump:
 BEHAVIORS = {
     "walk": 30, "stand": 20, "sit": 14, "sit_back": 5, "wash": 8, "stretch": 5, "jump": 18, "doze": 3,
 }
+BEG_WEIGHT = 30
 
 
 class Pet:
-    def __init__(self, animations, rng=None):
+    def __init__(self, animations, rng=None, needs=None):
         self.anims = animations
         self.rng = rng or random.Random()
+        self.needs = needs if needs is not None else Needs()
+        self._events = []
+        self._requests = []
+        self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.body = None
         self.facing = "right"
         self.mode = "script"
@@ -260,6 +273,16 @@ class Pet:
         seg = self.body.support
         self.body.x = min(max(self.body.x + dx, seg.x0 + EDGE_MARGIN), seg.x1 - EDGE_MARGIN)
 
+    def emit(self, event):
+        self._events.append(event)
+
+    def request(self, what):
+        """Commande de l'utilisateur : 'feed' ou 'drink'. Interrompt ce que fait le chat."""
+        self._requests.append(what)
+        if (self.body is not None and self.scene is None and self.mode == "script"
+                and not getattr(self.action, "airborne", False)):
+            self._run(self._brain())
+
     def head(self):
         return self.body.x, self.body.y - HEAD_HEIGHT
 
@@ -279,9 +302,11 @@ class Pet:
     def still(self, value):
         self._still = value
         if self.mode == "script" and not getattr(self.action, "airborne", False):
+            self.scene = None
             self._run(self._brain())
 
     def grab(self, px, py):
+        self.scene = None
         self.mode = "held"
         self._pointer = (px, py)
         self._grab_offset = (self.body.x - px, self.body.y - py)
@@ -314,11 +339,13 @@ class Pet:
         self.segments = compute_surfaces(snap)
         if self.body is None:
             self._spawn()
+        self.needs.tick(dt)
         hidden = bool(snap.windows) and snap.windows[0].fullscreen
         if not hidden:
             self._update(dt)
+        events, self._events = tuple(self._events), []
         return View(self.player.animation.name, self.player.frame, self.body.x, self.body.y,
-                    self.mirrored, hidden)
+                    self.mirrored, hidden, events)
 
     def _update(self, dt):
         if self.mode == "held":
@@ -349,6 +376,7 @@ class Pet:
         self.action.start(self)
 
     def _start_fall(self):
+        self.scene = None
         self.mode = "falling"
         self.action = None
         self._fall_from = self.body.y
@@ -375,6 +403,11 @@ class Pet:
 
     def _brain(self):
         while True:
+            if self._requests:
+                self.scene = self._requests.pop(0)
+                yield from {"feed": self._do_feed, "drink": self._do_drink}[self.scene]()
+                self.scene = None
+                continue
             if self._still:
                 yield Play(f"stand_{self.facing}", duration=1.0)
                 continue
@@ -386,6 +419,8 @@ class Pet:
                 yield from self._do_hunt(prey)
                 continue
             choices = dict(BEHAVIORS)
+            if self.needs.hungry or self.needs.thirsty:
+                choices["beg"] = BEG_WEIGHT
             targets = self._jump_targets()
             if not targets:
                 choices.pop("jump")
@@ -434,6 +469,40 @@ class Pet:
         yield Play("sit_down")
         yield Hold("sit_front", 0, self.rng.uniform(10, 25))
         yield Play("sit_up")
+
+    def _do_beg(self):
+        yield from self._face("right")
+        yield Play("sit_down")
+        yield Play("sit_front", duration=3.0, idle=True, event="meow")
+        yield Play("sit_up")
+
+    def _make_room(self, left, right):
+        seg = self.body.support
+        lo, hi = seg.x0 + left, seg.x1 - right
+        target = min(max(self.body.x, lo), hi) if lo <= hi else (seg.x0 + seg.x1) / 2
+        if abs(target - self.body.x) > 5:
+            yield from self._face("right" if target > self.body.x else "left")
+            yield WalkTo(target, idle=False)
+
+    def _do_feed(self):
+        yield from self._make_room(*FEED_ROOM)
+        yield from self._face("right")
+        yield Play("sit_down")
+        yield Play("cupboard_enter")
+        yield Hold("cupboard_enter", -1, EAT_TIME, idle=False, event="crunch")
+        self.needs.feed()
+        yield Play("cupboard_exit")
+        yield Play("cupboard_leave")
+
+    def _do_drink(self):
+        yield from self._make_room(*DRINK_ROOM)
+        yield from self._face("right")
+        yield Play("milk_arrive")
+        yield Play("milk_peek")
+        yield Play("milk_around")
+        yield Play("milk_spill")
+        yield Play("milk_drink", event="lap")
+        self.needs.drink()
 
     def _do_watch(self):
         yield from self._face("right")

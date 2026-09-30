@@ -29,3 +29,29 @@ def guess_grid(alpha, w, h, max_div=12):
             if _crossing_ratio(alpha, w, h, cols, rows) <= MAX_CROSSING:
                 best = (cols, rows)
     return best
+
+
+def _shift(row, dx):
+    return row << dx if dx >= 0 else row >> -dx
+
+
+def best_offset(a, b, max_dx, max_dy):
+    """Décalage (dx, dy) qui superpose au mieux le masque a sur le masque b.
+
+    a, b : une ligne par entier (bit x = pixel opaque en colonne x). Critère :
+    intersection sur union ; à égalité, le plus petit déplacement.
+    """
+    count_a = sum(r.bit_count() for r in a)
+    count_b = sum(r.bit_count() for r in b)
+    best, best_key = (0, 0), None
+    for dy in range(-max_dy, max_dy + 1):
+        for dx in range(-max_dx, max_dx + 1):
+            overlap = 0
+            for y, row in enumerate(a):
+                if 0 <= y + dy < len(b):
+                    overlap += (_shift(row, dx) & b[y + dy]).bit_count()
+            score = overlap / (count_a + count_b - overlap or 1)
+            key = (score, -(abs(dx) + abs(dy)))
+            if best_key is None or key > best_key:
+                best, best_key = (dx, dy), key
+    return best
