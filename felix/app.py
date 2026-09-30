@@ -299,6 +299,8 @@ class FelixApp(QObject):
         actions = []
         if "fun" in self.bank.extensions:
             actions.append(("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None))
+            actions.append(("Souris mécanique", lambda _=False: self.pet.request("mouse"), None))
+            actions.append(("Grenouille", lambda _=False: self.pet.request("frog"), None))
         return actions
 
     def _make_tray(self):

@@ -27,6 +27,7 @@ class BallWindow(QWidget):
         self._samples = deque(maxlen=16)
         self._frame_index = None
         self.pixmap = None
+        self._grabbable = True
         self.set_bank(bank)
 
     def set_bank(self, bank):
@@ -64,6 +65,7 @@ class BallWindow(QWidget):
         if view is None or not view.visible:
             self.hide()
             return
+        self._grabbable = view.grabbable
         if view.anim != self._anim:
             self._use(view.anim)
         self._show_frame(view.frame)
@@ -100,7 +102,7 @@ class BallWindow(QWidget):
         p.drawPixmap(0, 0, self.pixmap)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and self._grabbable:
             pos = event.globalPosition()
             self.grab_at(pos.x(), pos.y(), time.monotonic())
 

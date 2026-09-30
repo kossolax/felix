@@ -74,3 +74,15 @@ def test_the_window_shows_whichever_ball_is_out(bank):
     anchor = bank.animations["beach_ball"].frames[0].anchor
     assert win.pixmap.width() > 2 * small.width()
     assert (win.x() + anchor[0], win.y() + anchor[1]) == (500, 1000)
+
+
+def test_a_toy_that_cannot_be_picked_up_ignores_the_mouse(bank, qapp):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    calls = []
+    win = make_window(bank, calls)
+    win.show_view(BallView(500, 1000, 0, grabbable=False))
+    press = QMouseEvent(QMouseEvent.Type.MouseButtonPress, QPointF(5, 5), QPointF(505, 995),
+                        Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    win.mousePressEvent(press)
+    assert calls == [] and not win.dragging

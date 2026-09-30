@@ -37,9 +37,17 @@ CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
 BALL_AT_FEET = 38  # px entre les pieds du chat assis et la pelote que dessinent yarn_sniff / yarn_pat
 BAT_FROM = 44  # … et celle de la 2e image de yarn_bat, d'où la vraie pelote repart
 BAKED_BALL = frozenset({"yarn_sniff", "yarn_pat", "yarn_unroll", "yarn_follow", "yarn_bat_away",
-                        "beach_sit"})  # balle dessinée par les images du chat
+                        "beach_sit", "mouse_near", "mouse_pounce", "mouse_play",
+                        "mouse_upright"})  # balle (ou jouet) dessinée par les images du chat
 BEACH_LAUNCH = (5, 65)  # ballon : il quitte la patte à la 6e image de beach_pat, à 65 px des pieds
-BALL_LAUNCH = {"yarn_bat": (1, BAT_FROM), "beach_pat": BEACH_LAUNCH}  # (image, px des pieds)
+MOUSE_SPEED = 60  # px/s : la souris mécanique avance de 6 px par image, comme dessinée
+MOUSE_NEAR = 107  # px : où les images du chat (511) la dessinent quand elle arrive
+MOUSE_FROM = 137  # … et d'où elle repart (514, 14e image)
+MOUSE_WALK = (350, 450)  # px qu'elle parcourt pour venir jusqu'au chat
+MOUSE_PLAY = (2, 4)  # tours de jeu avec la souris retournée
+MOUSE_WAIT = 15.0  # s : patience du chat qui l'attend
+BALL_LAUNCH = {"yarn_bat": (1, BAT_FROM), "beach_pat": BEACH_LAUNCH,
+               "mouse_release": (13, MOUSE_FROM)}  # (image, px des pieds)
 BEACH_ROUNDS = (2, 4)  # tapes avant de bondir dessus et de le crever
 BEACH_SPEED = (120, 260)  # px/s : un ballon léger, tapoté, qui roule loin
 BEACH_REST = (1.0, 3.0)  # s assis à côté, avant de le tapoter
@@ -70,3 +78,12 @@ EDGE_JUMP_CHANCE = 0.5  # après avoir regardé en bas, il saute (sinon il recul
 EDGE_MIN_DROP = 40  # px : il ne saute que vers une surface au moins aussi bas
 EDGE_LAND = (80, 220)  # px au-delà du bord où il retombe
 OUTING_ROOM = (30, 110)
+FROG_HOP = (0, 18, 36, 52, 60, 60)  # px parcourus à chaque image du saut (les planches sautent sur place)
+FROG_HOP_FPS = 12
+FROG_APPROACH_PAUSE = (0.3, 0.9)  # s posée entre deux sauts, quand elle arrive
+FROG_WALK = (450, 600)  # px qu'elle parcourt pour venir jusqu'au chat
+FROG_NEAR = 220  # px : à cette distance, il se met à l'affût
+FROG_ROUNDS = (2, 4)  # bonds du chat
+FROG_FLEE = (2, 3)  # sauts pour lui échapper
+FROG_ROOM = 150  # px : moins de place devant elle, elle file de l'autre côté, par-dessus le chat
+FROG_WAIT = 25.0  # s : il la regarde partir

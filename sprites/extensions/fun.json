@@ -1,7 +1,9 @@
 {
   "source": "Felix II, extension « Fun and Games » (Module1.Felix, 2001) : ballon, souris mécanique, grenouille",
   "sheets": {
-    "500": [3, 4], "501": [4, 5], "502": [2, 7], "503": [2, 5], "504": [4, 1], "506": [2, 4]
+    "500": [3, 4], "501": [4, 5], "502": [2, 7], "503": [2, 5], "504": [4, 1], "506": [2, 4],
+    "507": [1, 3], "508": [1, 3], "509": [2, 3], "510": [2, 3],
+    "511": [2, 3], "512": [3, 7], "513": [3, 5], "514": [3, 5], "515": [1, 7], "516": [1, 7]
   },
   "erase": {
     "500": [[382, 88, 92, 88], [66, 176, 92, 88], [224, 176, 92, 88]]
@@ -14,6 +16,18 @@
     "beach_flat":       {"sheet": 502, "frames": "0-6", "fps": 6, "loop": true, "anchor": [23, 62], "facing": "right"},
     "beach_flat_look":  {"sheet": 502, "frames": "7-10", "fps": 4, "anchor": [23, 62], "facing": "right"},
     "beach_flat_fade":  {"sheet": 502, "frames": "11-13", "fps": 6, "anchor": [23, 62], "facing": "right"},
-    "beach_getup":      {"sheet": 503, "frames": "0-9", "fps": 8, "anchor": [29, 81], "exit": [62, 81], "facing": "right"}
+    "beach_getup":      {"sheet": 503, "frames": "0-9", "fps": 8, "anchor": [29, 81], "exit": [62, 81], "facing": "right"},
+    "frog_sit_left":    {"sheet": 507, "frames": "0-2", "fps": 3, "loop": true, "anchor": [51, 60], "facing": "left"},
+    "frog_sit_right":   {"sheet": 508, "frames": "0-2", "fps": 3, "loop": true, "anchor": [21, 60], "facing": "right"},
+    "frog_hop_left":    {"sheet": 509, "frames": "0-5", "fps": 12, "anchor": [50, 59], "facing": "left"},
+    "frog_hop_right":   {"sheet": 510, "frames": "0-5", "fps": 12, "anchor": [53, 59], "facing": "right"},
+    "mouse_walk_left":  {"sheet": 515, "frames": "0-6", "fps": 10, "anchor": [27, 28]},
+    "mouse_walk_right": {"sheet": 516, "frames": "0-6", "fps": 10, "anchor": [30, 28]},
+    "mouse_notice":     {"sheet": 511, "frames": "0-1", "fps": 3, "anchor": [47, 74], "facing": "right"},
+    "mouse_near":       {"sheet": 511, "frames": "2-5", "fps": 10, "anchor": [47, 74], "facing": "right"},
+    "mouse_pounce":     {"sheet": 512, "frames": "0-20", "fps": 10, "anchor": [60, 88], "facing": "right"},
+    "mouse_play":       {"sheet": 513, "frames": "0-10", "fps": 10, "loop": true, "anchor": [12, 74], "facing": "right"},
+    "mouse_upright":    {"sheet": 513, "frames": "11-14", "fps": 10, "anchor": [12, 74], "facing": "right"},
+    "mouse_release":    {"sheet": 514, "frames": "0-14", "fps": 10, "anchor": [12, 74], "exit": [98, 74], "facing": "right"}
   }
 }

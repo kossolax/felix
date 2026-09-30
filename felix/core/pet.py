@@ -142,16 +142,16 @@ class Pet(FunScenes):
         self._want_to_play()
 
     def grab_ball(self):
-        if self.ball is not None:
+        if self.ball is not None and self.ball.kind.grabbable:
             self.ball.grab()
 
     def drag_ball(self, x, y):
-        if self.ball is not None:
+        if self.ball is not None and self.ball.held:
             self.ball.move_to(x, y)
 
     def throw_ball(self, vx, vy):
         """Pelote lâchée à la souris, avec la vitesse du geste : le chat court après."""
-        if self.ball is not None:
+        if self.ball is not None and self.ball.held:
             self.ball.throw(vx, vy)
             self._want_to_play()
 
@@ -160,7 +160,7 @@ class Pet(FunScenes):
 
     def _want_to_play(self):
         game = self.ball.kind.scene if self.ball is not None else "yarn"
-        if not self._still and self.scene != game and game not in self._requests:
+        if game and not self._still and self.scene != game and game not in self._requests:
             self.request(game)
 
     def stroke(self):
@@ -266,7 +266,7 @@ class Pet(FunScenes):
         name = self.player.animation.name
         drawn = name in BAKED_BALL or (name in BALL_LAUNCH and self.player.index < BALL_LAUNCH[name][0])
         visible = not drawn and not self._fullscreen_at(snap, ball.x, ball.y - 1)
-        return BallView(ball.x, ball.y, ball.frame, visible, ball.kind.anim)
+        return BallView(ball.x, ball.y, ball.frame, visible, ball.anim, ball.kind.grabbable)
 
     def _fullscreen_at(self, snap, x, y):
         """La fenêtre du dessus, sur l'écran de (x, y), est-elle en plein écran (vidéo, jeu…) ?"""
@@ -341,6 +341,7 @@ class Pet(FunScenes):
                 yield from getattr(self, f"_do_{self.scene}")()
                 self.scene = None
                 continue
+            self._send_off_stray_toy()
             if self._still:
                 yield Play(f"stand_{self.facing}", duration=1.0)
                 continue
@@ -356,7 +357,7 @@ class Pet(FunScenes):
             choices.update(MISCHIEF)
             if self.ball is not None and self.ball.kind is not YARN:
                 choices.pop("yarn")  # pas de pelote tant qu'un ballon traîne
-            if self._ball_to_play_with():
+            if self._ball_to_play_with() and self.ball.kind.scene:
                 choices[self.ball.kind.scene] = BALL_OUT_WEIGHT
             if self.needs.hungry or self.needs.thirsty:
                 choices["beg"] = BEG_WEIGHT * (1 + 2 * max(self.needs.hunger, self.needs.thirst))
@@ -372,6 +373,13 @@ class Pet(FunScenes):
                 yield from self._do_jump(targets)
             else:
                 yield from getattr(self, f"_do_{name}")()
+
+    def _send_off_stray_toy(self):
+        """Un jouet qui se déplace seul (souris, grenouille), resté là après une partie
+        interrompue, s'en va tout droit."""
+        ball = self.ball
+        if ball is not None and ball.kind.scene is None and not ball.exits:
+            ball.leave(self.k)
 
     def _face(self, direction):
         if self.facing != direction:

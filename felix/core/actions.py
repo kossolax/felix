@@ -19,6 +19,7 @@ class BallView:
     frame: int
     visible: bool = True  # cachée quand les images du chat la dessinent elles-mêmes
     anim: str = "yarn_ball"  # images de la balle (pelote, ballon…)
+    grabbable: bool = True
 
 
 @dataclass
@@ -324,13 +325,14 @@ class Jump:
 class WatchBall:
     """Debout, suit la pelote des yeux (et se retourne si elle passe derrière lui).
 
-    until : 'free' (posée et lâchée), 'rest' (arrêtée), 'gone' (partie) ou 'never' (juste la
-    regarder) ; `ok` : c'est arrivé avant la fin de la patience."""
+    until : 'free' (posée et lâchée), 'rest' (arrêtée), 'gone' (partie), 'near' (à moins de `near`
+    px de lui) ou 'never' (juste la regarder) ; `ok` : c'est arrivé avant la fin de la patience."""
     airborne = False
 
-    def __init__(self, limit, until="free"):
+    def __init__(self, limit, until="free", near=0.0):
         self.limit = limit
         self.until = until
+        self.near = near
 
     def start(self, pet):
         self.elapsed = 0.0
@@ -347,6 +349,9 @@ class WatchBall:
         return self.until == "rest" and ball.resting
 
     def update(self, pet, dt):
+        if self.until == "near" and pet.ball is not None and abs(pet.ball.x - pet.body.x) <= self.near:
+            self.ok = True
+            return True
         self.elapsed += dt
         pet.player.update(dt)
         ball = pet.ball

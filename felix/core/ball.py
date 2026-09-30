@@ -29,11 +29,17 @@ class BallKind:
     friction: float  # px/s² en roulant
     bounce: float  # part de la vitesse gardée à chaque rebond au sol
     at_feet: int  # px entre les pieds du chat assis et la balle que dessinent ses images
-    scene: str  # jeu du chat avec elle
+    scene: str  # jeu du chat avec elle (None : il ne la reprend pas de lui-même)
+    frames: int = FRAMES
+    anim_left: str = None  # images vers la gauche, pour un jouet qui marche (sinon : il roule)
+    grabbable: bool = True
+    speed: float = 0.0  # px/s d'un jouet qui marche
 
 
 YARN = BallKind("yarn_ball", BALL_RADIUS, ROLL_STEP, BALL_FRICTION, BALL_BOUNCE, 38, "yarn")
 BEACH = BallKind("beach_ball", 32, 50, 60.0, 0.6, 56, "beachball")  # extension Fun and Games
+MOUSE = BallKind("mouse_walk_right", 27, 6, 0.0, 0.0, 0, None, frames=7, anim_left="mouse_walk_left",
+                 grabbable=False, speed=60.0)  # souris mécanique : elle marche droit devant elle, la clé tourne
 
 
 def _window_rect(snap, wid):
@@ -54,10 +60,23 @@ class Ball:
         self.exits = False  # renvoyée pour de bon : plus de murs ni de frottement
         self.gone = False
         self.roll = 0.0  # distance roulée (signée), pour l'image
+        self.heading = 1  # sens de la marche (jouets qui marchent)
 
     @property
     def frame(self):
-        return int(self.roll // (self.kind.roll_step * self.k)) % FRAMES
+        return int(self.roll // (self.kind.roll_step * self.k)) % self.kind.frames
+
+    @property
+    def anim(self):
+        return self.kind.anim_left if self.kind.anim_left and self.heading < 0 else self.kind.anim
+
+    def _advance(self, dx):
+        if self.kind.anim_left:  # un jouet qui marche : ses images avancent dans les deux sens
+            if dx:
+                self.heading = 1 if dx > 0 else -1
+            self.roll += abs(dx)
+        else:
+            self.roll += dx
 
     @property
     def grounded(self):
@@ -69,8 +88,15 @@ class Ball:
 
     def kick(self, vx, vy=0.0):
         self.vx, self.vy = float(vx), float(vy)
+        if vx:
+            self.heading = 1 if vx > 0 else -1
         if vy < 0:
             self.support = self.owner_rect = None
+
+    def leave(self, scale=1):
+        """Un jouet qui marche s'en va tout droit, jusqu'à sortir de l'écran."""
+        self.exits = True
+        self.kick(self.heading * self.kind.speed * scale, 0.0)
 
     def grab(self):
         self.held = True
@@ -109,7 +135,7 @@ class Ball:
             return
         dx = self.vx * dt
         self.x += dx
-        self.roll += dx
+        self._advance(dx)
         if not self.exits:
             dv = self.kind.friction * self.k * dt
             self.vx = 0.0 if abs(self.vx) <= dv else self.vx - math.copysign(dv, self.vx)
@@ -144,7 +170,7 @@ class Ball:
         self.vy = min(self.vy + GRAVITY * dt, MAX_FALL_SPEED)
         nx = self.x + self.vx * dt
         ny = self.y + self.vy * dt
-        self.roll += self.vx * dt
+        self._advance(self.vx * dt)
         if not self.exits and snap.monitors:
             r = self.kind.radius * self.k
             left, top, right, _bottom = _bounds(snap)
