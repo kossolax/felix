@@ -3,7 +3,12 @@
 Le manifeste ne contient que des coordonnées : la planche (grille colonnes×lignes)
 et, pour chaque animation, les cellules à jouer. Les ancrages (pieds) sont
 calculés à partir des boîtes englobantes opaques fournies par `bbox_of`.
+
+Une animation « compose » superpose deux animations déjà définies : `under` est dessinée
+sous `base`, décalée de `at`, chacune à sa propre cadence.
 """
+import math
+
 from felix.core.anim import Animation, Frame
 
 
@@ -52,7 +57,10 @@ def load_manifest(data, sheet_sizes, bbox_of, scale=1):
     """
     grids = _grids(data, sheet_sizes)
     anims = {}
-    for name, spec in data.get("animations", {}).items():
+    specs = data.get("animations", {})
+    for name, spec in specs.items():
+        if "compose" in spec:
+            continue
         sid = spec["sheet"]
         if sid not in grids:
             raise ValueError(f"{name} : planche {sid} inconnue")
@@ -79,4 +87,32 @@ def load_manifest(data, sheet_sizes, bbox_of, scale=1):
             shift=shift,
             marks=marks,
         )
+    for name, spec in specs.items():
+        if "compose" in spec:
+            anims[name] = _compose(name, spec, anims, scale)
     return anims
+
+
+def _ticks(anim, fps):
+    return max(1, round(len(anim.frames) * fps / anim.fps))
+
+
+def _compose(name, spec, anims, scale):
+    c = spec["compose"]
+    try:
+        base, under = anims[c["base"]], anims[c["under"]]
+    except KeyError as exc:
+        raise ValueError(f"{name} : animation {exc} inconnue") from exc
+    fps = spec.get("fps", base.fps)
+    loop = spec.get("loop", False)
+    count = math.lcm(_ticks(base, fps), _ticks(under, fps)) if loop else _ticks(under, fps)
+    layer_frames = list(reversed(under.frames)) if c.get("reverse") else list(under.frames)
+    at = (c["at"][0] * scale, c["at"][1] * scale)
+    frames = []
+    for i in range(count):
+        b = base.frames[int(i * base.fps / fps) % len(base.frames)]
+        u = layer_frames[min(int(i * under.fps / fps), len(layer_frames) - 1) if not loop
+                         else int(i * under.fps / fps) % len(layer_frames)]
+        frames.append(Frame(b.sheet, b.rect, b.anchor, under=((u.sheet, u.rect, at),)))
+    return Animation(name=name, sheet=base.sheet, frames=tuple(frames), fps=fps, loop=loop,
+                     facing=spec.get("facing", base.facing))

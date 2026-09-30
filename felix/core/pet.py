@@ -675,9 +675,10 @@ class Pet:
         yield from self._make_room(*TV_ROOM)
         yield from self._face("right")
         yield Play("sit_back_down")
-        yield Play("tv_power")
-        yield Play("tv_on_air", duration=self.rng.uniform(*TV_TIME), event="purr")
-        yield Play("sit_back_tv", duration=2.0)
+        yield Play("tv_on")
+        yield Play("tv_watch", duration=self.rng.uniform(*TV_TIME), event="purr")
+        yield Play("tv_off")
+        yield Play("sit_back_tv", duration=1.5)
         yield Play("tv_leave")
 
     def _do_yarn(self):

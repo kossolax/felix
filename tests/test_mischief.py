@@ -61,7 +61,9 @@ def test_tv_scene():
     pet = settled_pet(snap)
     pet.request("tv")
     names, _ = run(pet, snap, 40)
-    assert names.index("tv_power") < names.index("tv_on_air") < names.index("tv_leave")
+    # la télé s'allume, joue puis s'éteint DERRIÈRE le chat assis de dos (images en couches)
+    assert names.index("tv_on") < names.index("tv_watch") < names.index("tv_off") < names.index("tv_leave")
+    assert "tv_power" not in names and "tv_on_air" not in names
 
 
 def test_fishbowl_scene():
@@ -89,7 +91,7 @@ def test_mischief_happens_on_its_own():
     for seed in range(3):
         pet = settled_pet(snap, seed)
         names, _ = run(pet, snap, 240)
-        seen.update(n for n in names if n in ("paw_prints", "fishbowl", "climb", "tv_on_air", "yarn_play"))
+        seen.update(n for n in names if n in ("paw_prints", "fishbowl", "climb", "tv_watch", "yarn_play"))
     assert len(seen) >= 2
 
 

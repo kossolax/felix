@@ -85,3 +85,33 @@ def test_scale_multiplies_every_coordinate():
     assert two.frames[0].anchor == (6, 14)
     assert (two.dx, two.shift) == (8, (4, 0))
     assert two.marks == (((2 * 10 + 2, 4, 6, 8), (2, 4)),)
+
+
+def compose_data(loop=True):
+    return {"sheets": {"1": [2, 1], "2": [3, 1]},
+            "animations": {
+                "cat": {"sheet": 1, "frames": "0-1", "fps": 6, "loop": True, "anchor": [5, 9]},
+                "tv": {"sheet": 2, "frames": "0-2", "fps": 3, "loop": True},
+                "watch": {"compose": {"base": "cat", "under": "tv", "at": [60, -44]}, "fps": 6, "loop": loop}}}
+
+
+def test_compose_draws_a_second_animation_under_the_first():
+    a = load_manifest(compose_data(), {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    # chat 2 images à 6 i/s, télé 3 images à 3 i/s (2 ticks chacune) : cycle ppcm(2, 6) = 6
+    assert len(a.frames) == 6 and a.loop and a.fps == 6
+    cats = [f.rect[0] for f in a.frames]
+    tvs = [f.under[0][1][0] for f in a.frames]
+    assert cats == [0, 10, 0, 10, 0, 10]
+    assert tvs == [0, 0, 10, 10, 20, 20]
+    assert a.frames[0].anchor == (5, 9) and a.frames[0].under[0][2] == (60, -44)
+
+
+def test_one_shot_compose_follows_the_under_animation():
+    a = load_manifest(compose_data(loop=False), {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    assert len(a.frames) == 6 and not a.loop
+
+
+def test_frame_bounds_include_the_layers():
+    from felix.core.anim import frame_bounds
+    a = load_manifest(compose_data(), {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    assert frame_bounds(a.frames[0]) == (0, -44, 70, 10)  # cellule 10×10 + télé 10×10 en (60, -44)

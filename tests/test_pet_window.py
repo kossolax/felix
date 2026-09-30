@@ -21,3 +21,11 @@ def test_frame_is_drawn_so_its_anchor_sits_on_the_feet_point():
     assert ext.window_origin(View("a", f, 500.4, 300)) == (430, 210)
     assert ext.frame_offset(f, mirrored=False) == (40, 20)
     assert ext.frame_offset(f, mirrored=True) == (0, 20)
+
+
+def test_extents_and_offset_account_for_layers_drawn_under_the_frame():
+    # cellule 100×80, pieds en (30, 70) ; une télé 40×30 dessous, en (50, -20)
+    f = Frame(1, (0, 0, 100, 80), (30, 70), under=((2, (0, 0, 40, 30), (50, -20)),))
+    ext = compute_extents({"a": anim(f)})
+    assert (ext.up, ext.down) == (90, 10)
+    assert ext.frame_offset(f, mirrored=False) == (ext.left - 30, ext.up - 90)

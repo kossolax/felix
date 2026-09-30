@@ -96,6 +96,7 @@ Outils :
 
 - `tools/atlas_viewer.py` : lecture des animations et export des ancrages ;
 - `tools/align.py` : recalage automatique des planches enchaînées ;
+- `tools/record_scene.py` : enregistrement hors écran d'une scène, image par image, en planche contact ;
 - `tools/make_sounds.py` : génération des sons ;
 - `tools/make_icon.py` : dessin de l'icône ;
 - `tools/build_deb.sh` : construction du paquet Debian ;

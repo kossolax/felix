@@ -10,6 +10,8 @@ from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QGuiApplication, QPainter
 from PySide6.QtWidgets import QWidget
 
+from felix.core.anim import frame_bounds
+
 
 @dataclass(frozen=True)
 class Extents:
@@ -30,19 +32,23 @@ class Extents:
         return round(view.x) - self.left, round(view.y) - self.up
 
     def frame_offset(self, frame, mirrored):
-        ax = frame.rect[2] - frame.anchor[0] if mirrored else frame.anchor[0]
-        return self.left - ax, self.up - frame.anchor[1]
+        """Où dessiner l'image (couches comprises) dans la fenêtre pour que l'ancre tombe sur les pieds."""
+        x0, y0, x1, _ = frame_bounds(frame)
+        w, ax = frame.rect[2], frame.anchor[0]
+        if mirrored:
+            ax, x0 = w - ax, w - x1
+        return self.left - ax + x0, self.up - frame.anchor[1] + y0
 
 
 def compute_extents(animations):
     side = up = down = 0
     for anim in animations.values():
         for f in anim.frames:
-            w, h = f.rect[2], f.rect[3]
+            x0, y0, x1, y1 = frame_bounds(f)
             ax, ay = f.anchor
-            side = max(side, ax, w - ax)
-            up = max(up, ay)
-            down = max(down, h - ay)
+            side = max(side, ax - x0, x1 - ax)
+            up = max(up, ay - y0)
+            down = max(down, y1 - ay)
     return Extents(side, side, up, down)
 
 

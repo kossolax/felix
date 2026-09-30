@@ -5,6 +5,9 @@ from pathlib import Path
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QBitmap, QImage, QPixmap, QRegion, QTransform
 
+from PySide6.QtGui import QPainter
+
+from felix.core.anim import frame_bounds
 from felix.core.manifest import load_manifest
 
 
@@ -58,19 +61,33 @@ class SpriteBank:
         return cls(sheets, anims, scale)
 
     def image(self, frame, mirrored=False):
+        """Image de la cellule, avec ses couches éventuelles dessinées dessous (voir frame_bounds)."""
         img = self.sheets[frame.sheet].copy(QRect(*frame.rect))
+        if frame.under:
+            x0, y0, x1, y1 = frame_bounds(frame)
+            canvas = QImage(x1 - x0, y1 - y0, QImage.Format.Format_ARGB32)
+            canvas.fill(0)
+            p = QPainter(canvas)
+            for sheet, rect, (ox, oy) in frame.under:
+                p.drawImage(ox - x0, oy - y0, self.sheets[sheet].copy(QRect(*rect)))
+            p.drawImage(-x0, -y0, img)
+            p.end()
+            img = canvas
         return img.transformed(QTransform.fromScale(-1, 1)) if mirrored else img
 
     def pixmap(self, frame, mirrored=False):
-        key = (frame.sheet, frame.rect, mirrored)
+        key = (frame.sheet, frame.rect, frame.under, mirrored)
         if key not in self._pixmaps:
             self._pixmaps[key] = QPixmap.fromImage(self.image(frame, mirrored))
         return self._pixmaps[key]
 
     def mask(self, frame, mirrored=False):
         """Région opaque de l'image, pour QWidget.setMask (clics traversants sous X11)."""
-        key = (frame.sheet, frame.rect, mirrored)
+        key = (frame.sheet, frame.rect, frame.under, mirrored)
         if key not in self._masks:
-            bitmap = QBitmap.fromImage(self.pixmap(frame, mirrored).toImage().createAlphaMask())
-            self._masks[key] = QRegion(bitmap)
+            img = self.pixmap(frame, mirrored).toImage()
+            if img.hasAlphaChannel():
+                self._masks[key] = QRegion(QBitmap.fromImage(img.createAlphaMask()))
+            else:  # image entièrement opaque : Qt l'a convertie sans canal alpha
+                self._masks[key] = QRegion(img.rect())
         return self._masks[key]

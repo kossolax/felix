@@ -50,3 +50,33 @@ def test_bank_can_be_loaded_twice_as_big(qapp):
     f1, f2 = one.animations["walk_right"].frames[0], two.animations["walk_right"].frames[0]
     assert two.pixmap(f2).width() == 2 * one.pixmap(f1).width()
     assert two.animations["walk_right"].dx == 2 * one.animations["walk_right"].dx
+
+
+def test_layered_frame_is_composed_with_the_layer_underneath(qapp):
+    from felix.core.anim import Frame
+    cat = QImage(10, 10, QImage.Format.Format_ARGB32)
+    cat.fill(QColor(0, 0, 0, 0))
+    cat.setPixelColor(5, 5, QColor(255, 0, 0, 255))
+    tv = QImage(4, 4, QImage.Format.Format_ARGB32)
+    tv.fill(QColor(0, 0, 255, 255))
+    bank = SpriteBank({1: cat, 2: tv}, {})
+    frame = Frame(1, (0, 0, 10, 10), (5, 9), under=((2, (0, 0, 4, 4), (4, -2)),))
+    img = bank.pixmap(frame).toImage()
+    assert (img.width(), img.height()) == (10, 12)  # la télé dépasse de 2 px au-dessus
+    assert img.pixelColor(4, 0).getRgb() == (0, 0, 255, 255)  # télé
+    assert img.pixelColor(5, 7).getRgb() == (255, 0, 0, 255)  # chat par-dessus
+    assert img.pixelColor(0, 5).alpha() == 0
+
+
+def test_plain_and_layered_versions_of_a_cell_are_cached_separately(qapp):
+    from felix.core.anim import Frame
+    cat = QImage(10, 10, QImage.Format.Format_ARGB32)
+    cat.fill(QColor(255, 0, 0, 255))
+    tv = QImage(4, 4, QImage.Format.Format_ARGB32)
+    tv.fill(QColor(0, 0, 255, 255))
+    bank = SpriteBank({1: cat, 2: tv}, {})
+    layered = Frame(1, (0, 0, 10, 10), (5, 9), under=((2, (0, 0, 4, 4), (4, -2)),))
+    plain = Frame(1, (0, 0, 10, 10), (5, 9))
+    assert bank.pixmap(layered).height() == 12
+    assert bank.pixmap(plain).height() == 10  # pas la version avec télé
+    assert bank.mask(plain).boundingRect().height() == 10

@@ -9,6 +9,16 @@ class Frame:
     sheet: int
     rect: tuple  # (x, y, w, h) dans la planche
     anchor: tuple  # (x, y) des pieds, relatif à la cellule
+    under: tuple = ()  # couches dessinées dessous : ((planche, rect, (x, y) relatif à la cellule), …)
+
+
+def frame_bounds(frame):
+    """(x0, y0, x1, y1) de l'image et de ses couches, dans les coordonnées de la cellule principale."""
+    x0, y0, x1, y1 = 0, 0, frame.rect[2], frame.rect[3]
+    for _sheet, rect, (ox, oy) in frame.under:
+        x0, y0 = min(x0, ox), min(y0, oy)
+        x1, y1 = max(x1, ox + rect[2]), max(y1, oy + rect[3])
+    return x0, y0, x1, y1
 
 
 @dataclass(frozen=True)
