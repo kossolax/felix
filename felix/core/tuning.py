@@ -91,3 +91,7 @@ SCRATCH_ROOM = {"left": (145, 65), "right": (65, 145)}  # griffures sur la vitre
 SCRATCH_CYCLES = (3, 5)  # l'original en fait 4, de 1,2 s
 PLANT_ROOM = (70, 225)
 BIN_ROOM = (60, 235)
+TEAR_ROOM = (55, 150)  # déchirure dans l'écran (extension More Mischief)
+BUTTERFLY_ROOM = (45, 200)
+LEAVES_ROOM = (60, 240)
+WALK_ON = 80  # px de marche après la scène, le temps que l'accessoire s'efface

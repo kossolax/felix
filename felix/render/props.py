@@ -46,6 +46,27 @@ class PropWindow(QWidget):
         self._fade.start()
 
 
+class AnimPropWindow(PropWindow):
+    """Accessoire animé qui se joue une fois puis disparaît (ex. la déchirure qui se referme)."""
+
+    def __init__(self, pixmaps, x, y, fps):
+        super().__init__(pixmaps[0], x, y, lifetime=3600)
+        self.frames = list(pixmaps)
+        self.index = 0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self.advance)
+        self._timer.start(int(1000 / fps))
+
+    def advance(self):
+        self.index += 1
+        if self.index >= len(self.frames):
+            self._timer.stop()
+            self.close()
+            return
+        self.pixmap = self.frames[self.index]
+        self.update()
+
+
 def claw_pixmap(height, rng):
     """Quatre griffures légèrement ondulées, blanches cernées de gris, sur `height` pixels."""
     pix = QPixmap(CLAW_WIDTH, max(height, 1))
@@ -87,6 +108,10 @@ class PropManager:
             _, (sheet, sx, sy, w, h), (x, y) = event
             pix = QPixmap.fromImage(self.bank.sheets[sheet].copy(QRect(sx, sy, w, h)))
             self._add(PropWindow(pix, x, y, GHOST_HOLD, GHOST_FADE_MS))
+        elif kind == "prop_anim":
+            _, name, (x, y), mirrored = event
+            anim = self.bank.animations[name]
+            self._add(AnimPropWindow([self.bank.pixmap(f, mirrored) for f in anim.frames], x, y, anim.fps))
         elif kind == "claws":
             _, x, top, bottom = event
             self._add(PropWindow(claw_pixmap(round(bottom - top), self.rng), x - CLAW_WIDTH / 2, top, self.lifetime))

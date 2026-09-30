@@ -11,6 +11,7 @@ import random
 from felix.core.anim import Player
 from felix.core.fun import FunScenes
 from felix.core.mischief import MischiefScenes
+from felix.core.more_mischief import HIDDEN, MoreMischiefScenes
 from felix.core.ball import YARN, Ball
 from felix.core.mood import Temperament
 from felix.core.needs import Needs
@@ -42,7 +43,7 @@ MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
-class Pet(FunScenes, MischiefScenes):
+class Pet(FunScenes, MischiefScenes, MoreMischiefScenes):
     def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
         self.k = scale  # taille du chat : les distances liées à son corps suivent
@@ -166,7 +167,8 @@ class Pet(FunScenes, MischiefScenes):
 
     def stroke(self):
         """Caresse (clic sans glisser) : le chat s'assoit et ronronne."""
-        if self.body is not None and self.mode == "script" and self.scene is None and self.body.grounded:
+        if (self.body is not None and self.mode == "script" and self.scene is None and self.body.grounded
+                and self.player.animation.name not in HIDDEN):
             self._run(self._stroked())
 
     def marks_on_screen(self, anim):
@@ -206,8 +208,8 @@ class Pet(FunScenes, MischiefScenes):
             self._run(self._brain())
 
     def grab(self, px, py):
-        if self.away or self.body is None:
-            return  # dehors (invisible) : rien à attraper
+        if self.away or self.body is None or self.player.animation.name in HIDDEN:
+            return  # dehors, ou caché dans la déchirure : rien à attraper
         self.scene = None
         self.mode = "held"
         self._pointer = (px, py)
@@ -357,6 +359,7 @@ class Pet(FunScenes, MischiefScenes):
             choices = dict(BEHAVIORS)
             choices.update(MISCHIEF)
             choices.update(self._mischief_ext())
+            choices.update(self._more_mischief_ext())
             if self.ball is not None and self.ball.kind is not YARN:
                 choices.pop("yarn")  # pas de pelote tant qu'un ballon traîne
             if self._ball_to_play_with() and self.ball.kind.scene:
