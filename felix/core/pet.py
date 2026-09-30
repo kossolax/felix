@@ -2,7 +2,8 @@
 
 Un script est un générateur qui produit des actions (Play, WalkTo, Jump…).
 Chaque action tourne jusqu'à sa fin, puis le script reprend. La chute et la
-prise à la souris interrompent le script en cours.
+prise à la souris interrompent le script en cours ; les actions d'attente
+s'interrompent quand le curseur s'approche.
 """
 import math
 import random
@@ -18,6 +19,19 @@ JUMP_DOWN = 700
 JUMP_REACH = 500
 JUMP_APEX = 70
 SCARED_FALL = 400
+HEAD_HEIGHT = 60  # hauteur de la tête au-dessus des pieds, chat assis
+ATTENTION = 220  # distance tête-curseur qui attire l'attention
+PAW_RANGE = 90  # distance tête-curseur pour un coup de patte
+WATCH_PATIENCE = 1.5  # secondes sans curseur avant de reprendre sa vie
+WATCH_MAX = 30
+HUNT_MIN, HUNT_MAX = 200, 800  # distance horizontale d'une proie au sol
+HUNT_LEVEL = 120  # le curseur doit être posé à moins de ça au-dessus de la surface
+HUNT_APPROACH = 150
+HUNT_CHANCE = 0.5
+HUNT_COOLDOWN = 20.0
+BORED_AFTER = 8.0  # un curseur immobile depuis ce temps n'intéresse plus
+PREY_FRESH = 20.0  # une proie immobile depuis plus longtemps n'est plus chassée
+CURSOR_JITTER = 3
 
 
 @dataclass
@@ -30,22 +44,39 @@ class View:
     hidden: bool = False
 
 
+def direction_to(hx, hy, cx, cy):
+    """Direction du curseur vue depuis la tête : up, left, right, bottom_left, bottom_right."""
+    dx, dy = cx - hx, cy - hy
+    if dy < 0 and -dy > abs(dx) * 1.5:
+        return "up"
+    if dy > 0 and dy > abs(dx) * 0.6:
+        return "bottom_left" if dx < 0 else "bottom_right"
+    return "left" if dx < 0 else "right"
+
+
 # --- Actions -----------------------------------------------------------------
 
 class Play:
-    """Joue une animation : une fois, ou pendant `duration` secondes si elle boucle."""
+    """Joue une animation : une fois, ou pendant `duration` secondes si elle boucle.
+
+    `idle` : l'attente s'arrête si le curseur s'approche.
+    """
     airborne = False
 
-    def __init__(self, name, duration=None):
+    def __init__(self, name, duration=None, mirrored=False, idle=False):
         self.name = name
         self.duration = duration
+        self.mirrored = mirrored
+        self.idle = idle
 
     def start(self, pet):
-        pet.play(self.name)
+        pet.play(self.name, self.mirrored)
         self.elapsed = 0.0
         self.frames = 0
 
     def update(self, pet, dt):
+        if self.idle and pet.cursor_near():
+            return True
         self.frames += pet.player.update(dt)
         self.elapsed += dt
         anim = pet.player.animation
@@ -63,7 +94,7 @@ class Hold(Play):
     """Reste figé sur une image d'une animation."""
 
     def __init__(self, name, index, duration):
-        super().__init__(name, duration)
+        super().__init__(name, duration, idle=True)
         self.index = index
 
     def start(self, pet):
@@ -71,6 +102,8 @@ class Hold(Play):
         pet.player.index = self.index
 
     def update(self, pet, dt):
+        if pet.cursor_near():
+            return True
         self.elapsed += dt
         return self.elapsed >= self.duration
 
@@ -78,14 +111,17 @@ class Hold(Play):
 class WalkTo:
     airborne = False
 
-    def __init__(self, x):
+    def __init__(self, x, idle=True):
         self.target = x
+        self.idle = idle
 
     def start(self, pet):
         self.direction = "right" if self.target > pet.body.x else "left"
         pet.play(f"walk_{self.direction}")
 
     def update(self, pet, dt):
+        if self.idle and pet.cursor_near():
+            return True
         steps = pet.player.update(dt)
         if not steps:
             return False
@@ -98,6 +134,47 @@ class WalkTo:
             x = self.target
         pet.body.x = min(max(x, lo), hi)
         return reached or pet.body.x in (lo, hi)
+
+
+class Watch:
+    """Assis, suit le curseur de la tête. Finit si le curseur part (reason='gone'),
+    s'approche à portée de patte ('paw'), ou au bout de WATCH_MAX ('bored')."""
+    airborne = False
+
+    def start(self, pet):
+        self.reason = None
+        self.direction = None
+        self.away = 0.0
+        self.elapsed = 0.0
+        pet.play("head_ambient")
+
+    def update(self, pet, dt):
+        self.elapsed += dt
+        pet.player.update(dt)
+        if pet.cursor_idle >= BORED_AFTER:
+            self.reason = "bored"
+            return True
+        cursor = pet.snap.cursor
+        hx, hy = pet.head()
+        dist = math.hypot(cursor[0] - hx, cursor[1] - hy) if cursor else float("inf")
+        if dist > ATTENTION:
+            self.away += dt
+            if self.away >= WATCH_PATIENCE:
+                self.reason = "gone"
+                return True
+            return False
+        self.away = 0.0
+        self.direction = direction_to(hx, hy, *cursor)
+        if dist <= PAW_RANGE:
+            self.reason = "paw"
+            return True
+        name = f"head_{self.direction}"
+        if pet.player.animation.name != name:
+            pet.play(name)
+        if self.elapsed >= WATCH_MAX:
+            self.reason = "bored"
+            return True
+        return False
 
 
 class Jump:
@@ -162,19 +239,36 @@ class Pet:
         self._pointer = None
         self._grab_offset = (0, 0)
         self._fall_from = 0.0
+        self.clock = 0.0
+        self.cursor_idle = 0.0  # secondes depuis le dernier mouvement du curseur
+        self._last_cursor = None
+        self._next_hunt = 0.0
 
     # -- animation --
-    def play(self, name):
-        self.player = Player(self.anims[name])
-        facing = self.anims[name].facing
-        if facing in ("left", "right"):
-            self.facing = facing
+    def play(self, name, mirrored=False):
+        anim = self.anims[name]
+        self.player = Player(anim)
+        self.mirrored = mirrored
+        if anim.facing in ("left", "right"):
+            flip = {"left": "right", "right": "left"}
+            self.facing = flip[anim.facing] if mirrored else anim.facing
 
     def shift(self, delta):
         if delta == (0, 0) or self.body.support is None:
             return
+        dx = -delta[0] if self.mirrored else delta[0]
         seg = self.body.support
-        self.body.x = min(max(self.body.x + delta[0], seg.x0 + EDGE_MARGIN), seg.x1 - EDGE_MARGIN)
+        self.body.x = min(max(self.body.x + dx, seg.x0 + EDGE_MARGIN), seg.x1 - EDGE_MARGIN)
+
+    def head(self):
+        return self.body.x, self.body.y - HEAD_HEIGHT
+
+    def cursor_near(self):
+        cursor = self.snap.cursor if self.snap else None
+        if cursor is None or self.body is None or not self.body.grounded or self.cursor_idle >= BORED_AFTER:
+            return False
+        hx, hy = self.head()
+        return math.hypot(cursor[0] - hx, cursor[1] - hy) <= ATTENTION
 
     # -- interactions --
     @property
@@ -204,8 +298,19 @@ class Pet:
         self._start_fall()
 
     # -- boucle --
+    def _track_cursor(self, dt, cursor):
+        last = self._last_cursor
+        moved = cursor is not None and (last is None or abs(cursor[0] - last[0]) + abs(cursor[1] - last[1]) > CURSOR_JITTER)
+        if moved:
+            self._last_cursor = cursor
+            self.cursor_idle = 0.0
+        else:
+            self.cursor_idle += dt
+
     def update(self, dt, snap):
         self.snap = snap
+        self.clock += dt
+        self._track_cursor(dt, snap.cursor)
         self.segments = compute_surfaces(snap)
         if self.body is None:
             self._spawn()
@@ -273,6 +378,13 @@ class Pet:
             if self._still:
                 yield Play(f"stand_{self.facing}", duration=1.0)
                 continue
+            if self.cursor_near():
+                yield from self._do_watch()
+                continue
+            prey = self._prey()
+            if prey is not None and self.rng.random() < HUNT_CHANCE:
+                yield from self._do_hunt(prey)
+                continue
             choices = dict(BEHAVIORS)
             targets = self._jump_targets()
             if not targets:
@@ -296,18 +408,18 @@ class Pet:
         yield WalkTo(target)
 
     def _do_stand(self):
-        yield Play(f"stand_{self.facing}", duration=self.rng.uniform(2, 6))
+        yield Play(f"stand_{self.facing}", duration=self.rng.uniform(2, 6), idle=True)
 
     def _do_sit(self):
         yield from self._face("right")
         yield Play("sit_down")
-        yield Play("sit_front", duration=self.rng.uniform(4, 12))
+        yield Play("sit_front", duration=self.rng.uniform(4, 12), idle=True)
         yield Play("sit_up")
 
     def _do_sit_back(self):
         yield from self._face("right")
         yield Play("sit_back_down")
-        yield Play("sit_back", duration=self.rng.uniform(4, 10))
+        yield Play("sit_back", duration=self.rng.uniform(4, 10), idle=True)
         yield Play("sit_back_up")
 
     def _do_wash(self):
@@ -322,6 +434,37 @@ class Pet:
         yield Play("sit_down")
         yield Hold("sit_front", 0, self.rng.uniform(10, 25))
         yield Play("sit_up")
+
+    def _do_watch(self):
+        yield from self._face("right")
+        yield Play("sit_down")
+        while True:
+            watch = Watch()
+            yield watch
+            if watch.reason != "paw":
+                break
+            yield Play(f"paw_{watch.direction}")
+        yield Play("sit_up")
+
+    def _prey(self):
+        """Abscisse d'un curseur posé sur la surface du chat, à bonne distance, sinon None."""
+        cursor = self.snap.cursor
+        seg = self.body.support
+        if cursor is None or seg is None or self.clock < self._next_hunt or self.cursor_idle >= PREY_FRESH:
+            return None
+        cx, cy = cursor
+        if not (seg.y - HUNT_LEVEL <= cy <= seg.y + 10) or not seg.spans(cx):
+            return None
+        return cx if HUNT_MIN <= abs(cx - self.body.x) <= HUNT_MAX else None
+
+    def _do_hunt(self, cx):
+        direction = "right" if cx > self.body.x else "left"
+        sign = 1 if direction == "right" else -1
+        yield from self._face(direction)
+        yield WalkTo(cx - sign * HUNT_APPROACH, idle=False)
+        yield Play(f"stalk_{direction}")
+        yield Play("pounce", mirrored=direction == "left")
+        self._next_hunt = self.clock + HUNT_COOLDOWN
 
     def _jump_targets(self):
         body = self.body
