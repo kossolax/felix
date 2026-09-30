@@ -54,6 +54,13 @@ def main():
     served = args.scene in ("can", "carton", "treats")  # objets tenus au curseur (extension Feeding)
     if served:
         pet.hold_item(args.scene)
+    elif args.scene.startswith("kitten_") and args.scene != "kitten_show":  # scène à deux : le chaton d'abord
+        pet.show_kitten()
+        for _ in range(int(40 / DT)):
+            pet.update(DT, WORLD)
+            if pet.kitten is not None and pet.scene is None:
+                break
+        pet.request(args.scene)
     else:
         pet.request(args.scene)
     origin = None
@@ -87,6 +94,11 @@ def main():
             painter.drawPixmap(round(view.ball.x) - bf.anchor[0] - origin[0], round(view.ball.y) - bf.anchor[1] - origin[1],
                                bank.pixmap(bf))
         painter.drawPixmap(wx + ox - origin[0], wy + oy - origin[1], bank.pixmap(view.frame, view.mirrored))
+        kitten = view.kitten  # devant Felix, comme sa fenêtre
+        if kitten is not None and kitten.visible:
+            kf = bank.animations[kitten.anim].frames[kitten.frame]
+            painter.drawPixmap(round(kitten.x) - kf.anchor[0] - origin[0], round(kitten.y) - kf.anchor[1] - origin[1],
+                               bank.pixmap(kf))
         painter.setPen(QPen(QColor(255, 60, 60), 1))
         fx, fy = round(view.x) - origin[0], round(view.y) - origin[1]
         painter.drawLine(fx - 4, fy, fx + 4, fy)

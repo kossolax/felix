@@ -11,6 +11,7 @@ import random
 from felix.core.anim import Player
 from felix.core.feeding import FeedingScenes
 from felix.core.fun import FunScenes
+from felix.core.kitten_scenes import KittenScenes
 from felix.core.mischief import MischiefScenes
 from felix.core.more_mischief import HIDDEN, MoreMischiefScenes
 from felix.core.ball import YARN, Ball
@@ -44,7 +45,7 @@ MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
-class Pet(FunScenes, FeedingScenes, MischiefScenes, MoreMischiefScenes):
+class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefScenes):
     def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
         self.k = scale  # taille du chat : les distances liées à son corps suivent
@@ -55,6 +56,7 @@ class Pet(FunScenes, FeedingScenes, MischiefScenes, MoreMischiefScenes):
         self._requests = []
         self.ball = None  # pelote de laine libre, quand elle est sortie
         self.treats = []  # friandises tombées du sachet (extension Feeding)
+        self.kitten = None  # le chaton (extension Kitten), quand il est là
         self._item = self._item_state = None  # objet tenu au bout du curseur pour lui (Feeding)
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.gone = False  # sorti par la chatière (on peut fermer l'appli)
@@ -258,9 +260,10 @@ class Pet(FunScenes, FeedingScenes, MischiefScenes, MoreMischiefScenes):
             self._update(dt)
         ball = self._update_ball(dt, snap)
         treats = self._update_treats(dt, snap)
+        kitten = self._update_kitten(dt, snap)
         events, self._events = tuple(self._events), []
         return View(self.player.animation.name, self.player.frame, self.body.x, self.body.y,
-                    self.mirrored, hidden, events, ball, treats)
+                    self.mirrored, hidden, events, ball, treats, kitten)
 
     def _update_treats(self, dt, snap):
         views = []
@@ -372,6 +375,7 @@ class Pet(FunScenes, FeedingScenes, MischiefScenes, MoreMischiefScenes):
             choices.update(MISCHIEF)
             choices.update(self._mischief_ext())
             choices.update(self._more_mischief_ext())
+            choices.update(self._kitten_duo())
             if self.ball is not None and self.ball.kind is not YARN:
                 choices.pop("yarn")  # pas de pelote tant qu'un ballon traîne
             if self._ball_to_play_with() and self.ball.kind.scene:

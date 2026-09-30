@@ -62,6 +62,8 @@ class FelixApp(QObject):
         self.ball_window = BallWindow(bank, on_grab=self.pet.grab_ball, on_drag=self.pet.drag_ball,
                                       on_throw=self._ball_thrown)
         self.held = HeldItemWindow(bank, on_click=self._item_clicked, on_cancel=self._item_cancelled)
+        self.kitten_window = BallWindow(bank, on_grab=self.pet.grab_kitten, on_drag=self.pet.drag_kitten,
+                                        on_throw=self.pet.release_kitten)  # le chaton (extension Kitten)
         self.treat_windows = []  # friandises tombées (extension Feeding)
         self.treats_dropped = 0
         self.tray = None
@@ -136,6 +138,7 @@ class FelixApp(QObject):
         self.toybox.set_bank(bank)
         self.ball_window.set_bank(bank)
         self.held.bank = bank
+        self.kitten_window.set_bank(bank)
         for window in self.treat_windows:
             window.set_bank(bank)
         self.pet.set_animations(bank.animations, bank.scale)
@@ -253,6 +256,7 @@ class FelixApp(QObject):
         self._show_ball(view.ball)
         self._update_held(dt, snap)
         self._show_treats(view.treats)
+        self._show_kitten(view.kitten)
         for event in view.events:
             self.dispatch(event)
         if self.overlay is not None:
@@ -316,6 +320,12 @@ class FelixApp(QObject):
         self.pet.stop_holding()
         self.held.release()
 
+    def _show_kitten(self, kitten):
+        shown = self.kitten_window.isVisible()
+        self.kitten_window.show_view(kitten)
+        if self.kitten_window.isVisible() and not shown:
+            self.kitten_window.raise_()  # le chaton passe devant Felix
+
     def _show_treats(self, treats):
         while len(self.treat_windows) < len(treats):
             self.treat_windows.append(BallWindow(self.bank, on_grab=lambda: None, on_drag=lambda x, y: None,
@@ -372,6 +382,11 @@ class FelixApp(QObject):
             actions.append(("Pâtée Felix", lambda _=False: self.hold_item("can"), None))
             actions.append(("Lait Felix", lambda _=False: self.hold_item("carton"), None))
             actions.append(("Friandises Felix", lambda _=False: self.hold_item("treats"), None))
+        if "kitten" in self.bank.extensions:
+            if self.pet.kitten is None:
+                actions.append(("Montrer le chaton", lambda _=False: self.pet.show_kitten(), None))
+            else:
+                actions.append(("Cacher le chaton", lambda _=False: self.pet.hide_kitten(), None))
         if "fun" in self.bank.extensions:
             actions.append(("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None))
             actions.append(("Souris mécanique", lambda _=False: self.pet.request("mouse"), None))
@@ -430,5 +445,6 @@ class FelixApp(QObject):
             self.tray.hide()
         self.toybox.hide()
         self.ball_window.hide()
+        self.kitten_window.hide()
         self.backend.stop()
         QApplication.quit()

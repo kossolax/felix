@@ -106,3 +106,20 @@ def test_the_held_item_goes_away_when_the_cat_stops_waiting(bank, tmp_path):
     app.pet.stop_holding()
     ticks(app, 1)
     assert not app.held.isVisible()
+
+
+@pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_716.png").exists(), reason="extension Kitten absente")
+def test_the_kitten_can_be_shown_from_the_menu_and_has_its_own_window(bank, tmp_path):
+    app, _ = make_app(bank, tmp_path)
+    action(app, "Montrer le chaton")[1](False)
+    for _ in range(40 * 30):
+        app.tick(1 / 30)
+        if app.pet.kitten is not None and app.pet.kitten.visible:
+            break
+    ticks(app, 0.2)
+    assert app.kitten_window.isVisible()
+    labels = [item[0] for item in app.menu_actions() if item]
+    assert "Cacher le chaton" in labels and "Montrer le chaton" not in labels
+    action(app, "Cacher le chaton")[1](False)
+    ticks(app, 10)
+    assert app.pet.kitten is None and not app.kitten_window.isVisible()

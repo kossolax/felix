@@ -8,7 +8,8 @@ from felix.core.actions import Play, WalkTo
 from felix.core.tuning import BUTTERFLY_ROOM, EDGE_MARGIN, LEAVES_ROOM, TEAR_ROOM, WALK_ON
 
 MORE_MISCHIEF_EXT = {"tear": 1, "butterfly": 1, "leaves": 1}  # poids faibles : scènes longues
-HIDDEN = frozenset({"tear_inside", "tear_wait"})  # le chat est dans la déchirure : rien à attraper
+HIDDEN = frozenset({"tear_inside", "tear_wait",  # le chat est dans la déchirure : rien à attraper
+                    "kitten_flap_through", "kitten_flap_push", "kitten_flap_wait"})  # … ou passé la chatière
 
 
 class MoreMischiefScenes:

@@ -33,6 +33,7 @@ class View:
     events: tuple = ()  # sons à jouer : meow, purr, crunch, lap…
     ball: BallView = None
     treats: tuple = ()  # friandises tombées (BallView)
+    kitten: BallView = None  # le chaton, quand il vit seul
 
 
 def direction_to(hx, hy, cx, cy):
