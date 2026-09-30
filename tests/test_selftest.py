@@ -31,3 +31,22 @@ def test_selftest_calls_back_a_cat_that_went_out(qapp, tmp_path):
     felix = FelixApp(bank, FakeBackend(snap), settings=settings)
     felix.pet.request("outing")  # il sera dehors quand le selftest voudra le prendre
     assert selftest(felix) == 0
+
+
+def test_a_failed_selftest_says_what_the_cat_and_the_backend_were_doing(qapp, tmp_path, caplog):
+    from PySide6.QtCore import QSettings
+    from felix.__main__ import selftest
+    from felix.app import FelixApp
+    from felix.core.world import Monitor, Rect, WinRect, WorldSnapshot
+    from felix.paths import MANIFEST, SPRITES
+    from felix.platform.fake import FakeBackend
+    from felix.render.sprites import SpriteBank
+    bank = SpriteBank.load(MANIFEST, SPRITES)
+    screen = Rect(0, 0, 1024, 768)
+    video = WinRect(7, screen, fullscreen=True)  # le chat se cache et se fige derrière une vidéo
+    snap = WorldSnapshot(monitors=(Monitor(screen, screen),), windows=(video,))
+    settings = QSettings(str(tmp_path / "felix.ini"), QSettings.Format.IniFormat)
+    felix = FelixApp(bank, FakeBackend(snap), settings=settings)
+    assert selftest(felix) == 1
+    message = caplog.records[-1].getMessage()
+    assert "fall_" in message and '"fullscreen": true' in message

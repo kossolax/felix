@@ -69,7 +69,10 @@ def selftest(felix):
         felix.tick(1 / 30)
     log = logging.getLogger("felix")
     if not pet.body.grounded:
-        log.error("selftest : le chat n'a pas atterri")
+        from felix.platform.fake import scene_to_dict
+        world = json.dumps(scene_to_dict(felix.backend.snapshot()))
+        log.error("selftest : le chat n'a pas atterri (%s, scène %s, dehors %s, en (%.0f, %.0f) ; monde %s)",
+                  pet.player.animation.name, pet.scene, pet.away, pet.body.x, pet.body.y, world)
         return 1
     message = f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations)"
     log.info(message)
