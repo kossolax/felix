@@ -66,6 +66,7 @@
     "edge_left_back":   {"sheet": 139, "frames": [22, 17, 13, 11, 9, 8, 4, 1, 0], "fps": 12, "anchor": [50, 81], "facing": "left"},
     "edge_right_back":  {"sheet": 141, "frames": [22, 17, 13, 11, 9, 8, 4, 1, 0], "fps": 12, "anchor": [48, 81], "facing": "right"},
     "head_ambient":     {"sheet": 115, "frames": "0-1", "fps": 2, "loop": true, "facing": "front"},
+    "stroked":          {"sheet": 115, "frames": [0, 1, 1, 4, 4, 4, 4, 1, 0], "fps": 3, "facing": "front"},
     "head_bottom_left": {"sheet": 115, "frames": "2", "fps": 4, "loop": true, "facing": "front"},
     "head_left":        {"sheet": 115, "frames": "3", "fps": 4, "loop": true, "facing": "front"},
     "head_up":          {"sheet": 115, "frames": "4", "fps": 4, "loop": true, "facing": "front"},

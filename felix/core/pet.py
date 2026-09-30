@@ -865,7 +865,7 @@ class Pet:
     def _stroked(self):
         yield from self._face("right")
         yield Play("sit_down")
-        yield Play("sit_front", duration=3.5, event="purr")
+        yield Play("stroked", event="purr")  # yeux mi-clos, menton levé
         yield Play("sit_up")
         yield from self._brain()
 

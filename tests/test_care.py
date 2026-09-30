@@ -136,7 +136,14 @@ def test_stroking_the_cat_makes_it_sit_and_purr():
     pet.stroke()
     names, events = run(pet, 6)
     assert "purr" in events
-    assert "sit_front" in names
+    assert names.index("sit_down") < names.index("stroked") < names.index("sit_up")
+
+
+def test_being_stroked_does_not_look_like_just_sitting():
+    """Yeux mi-clos puis menton levé (planche 115), pas la pose assise ordinaire (103) : sans le son,
+    une caresse ne se confond plus avec le chat qui s'assoit de lui-même."""
+    anims = make_anims()
+    assert anims["stroked"].sheet != anims["sit_front"].sheet
 
 
 def test_leaving_goes_out_through_the_cat_flap():
