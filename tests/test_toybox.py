@@ -46,11 +46,14 @@ def test_box_menu_plays_with_the_yarn_near_the_box_or_puts_it_away(bank):
     assert calls == [("play", 800), ("hide",)]
 
 
-def test_dragging_moves_the_box_along_the_floor(bank):
+def test_dragging_keeps_the_grab_point_under_the_pointer(bank):
     calls = []
     box = make_box(bank, calls)
     box.place(800, 1040)
-    box.drag_by(150)
+    box.begin_drag(810)  # attrapée 10 px à droite du centre
+    box.drag_to(1110)
+    assert box.dragging and box.center_x == 1100 and box.y() + box.height() == 1040
+    box.drag_to(700)
+    assert box.center_x == 690
     box.end_drag()
-    assert box.center_x == 950 and box.y() + box.height() == 1040
-    assert calls == [("moved", 950)]
+    assert not box.dragging and calls == [("moved", 690)]

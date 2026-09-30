@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 from felix import __version__, autostart
 from felix.core.needs import Needs
 from felix.core.pet import Pet
+from felix.core.surfaces import monitor_for
 from felix.render.pet_window import PetWindow
 from felix.render.props import PropManager
 from felix.render.toybox import ToyboxWindow
@@ -55,7 +56,9 @@ class FelixApp(QObject):
         self.window.menu_requested.connect(self.show_menu)
         self.props = PropManager(bank, on_created=self.window.raise_)
         self.toybox = ToyboxWindow(bank, on_play=self._play_from_toybox, on_hide=lambda: self.set_toybox(False),
-                                   on_moved=lambda x: self.settings.setValue("toybox/x", x))
+                                   on_moved=self._toybox_dropped)
+        self._toybox_on = self.settings.value("toybox/visible", False) in (True, "true")
+        self._snap = None
         self._toybox_game = False  # partie lancée depuis la boîte : elle reste ouverte jusqu'à la fin
         self.tray = None
         if QSystemTrayIcon.isSystemTrayAvailable():
@@ -121,10 +124,8 @@ class FelixApp(QObject):
         self.toybox.set_bank(self.bank)
         self.pet.set_animations(self.bank.animations, scale)
 
-    def _toybox_wanted(self):
-        return self.settings.value("toybox/visible", False) in (True, "true")
-
     def set_toybox(self, visible):
+        self._toybox_on = visible
         self.settings.setValue("toybox/visible", visible)
         if not visible:
             self.toybox.hide()
@@ -133,24 +134,44 @@ class FelixApp(QObject):
         self._toybox_game = True
         self.pet.request("yarn", near=x + self.toybox.width())  # le chat joue à droite de la boîte
 
-    def _update_toybox(self, snap):
-        if not self._toybox_wanted() or not snap.monitors:
-            return
-        if self.toybox.isVisible():
-            x = self.toybox.center_x  # déjà posée (et peut-être en train d'être glissée) : elle fait foi
-        else:
+    def _toybox_home(self, snap):
+        """Position enregistrée (x, sol), ou par défaut aux trois quarts du premier écran."""
+        try:
+            return int(self.settings.value("toybox/x")), int(self.settings.value("toybox/floor"))
+        except (TypeError, ValueError):
+            wa = snap.monitors[0].workarea
             try:
-                x = int(self.settings.value("toybox/x"))
+                return int(self.settings.value("toybox/x")), wa.bottom
             except (TypeError, ValueError):
-                first = snap.monitors[0].workarea
-                x = first.x + first.w * 3 // 4
-        mon = next((m for m in snap.monitors if m.workarea.x <= x < m.workarea.right), snap.monitors[0])
-        x = min(max(x, mon.workarea.x + self.toybox.width() // 2), mon.workarea.right - self.toybox.width() // 2)
-        if not self.toybox.isVisible() or (x, mon.workarea.bottom) != (self.toybox.center_x, self.toybox.floor_y):
-            self.toybox.place(x, mon.workarea.bottom)
+                return wa.x + wa.w * 3 // 4, wa.bottom
+
+    def _fit_toybox(self, snap, x, floor):
+        """Pose la boîte sur le sol de l'écran qui contient (x, sol), ou du plus proche, entière."""
+        wa = monitor_for(snap.monitors, x, floor - 1).workarea
+        half = self.toybox.width() // 2
+        x = min(max(x, wa.x + half), wa.right - half)
+        self.toybox.place(x, wa.bottom)
+        return x, wa.bottom
+
+    def _toybox_dropped(self, x):
+        """Fin du glisser : un seul recalage, et on enregistre exactement ce qui est affiché."""
+        if self._snap is None or not self._snap.monitors:
+            return
+        x, floor = self._fit_toybox(self._snap, x, self.toybox.floor_y)
+        self.settings.setValue("toybox/x", x)
+        self.settings.setValue("toybox/floor", floor)
+
+    def _update_toybox(self, snap):
+        if not self._toybox_on or not snap.monitors:
+            return
         if self._toybox_game and self.pet.scene is None and "yarn" not in self.pet._requests:
             self._toybox_game = False
         self.toybox.set_open(self._toybox_game)
+        if self.toybox.dragging:
+            return  # pendant un glisser, la boîte suit le pointeur et rien d'autre
+        # sa place enregistrée si son écran est là, sinon l'écran le plus proche (sans l'enregistrer :
+        # elle y reviendra quand l'écran reviendra)
+        self._fit_toybox(snap, *self._toybox_home(snap))
         if not self.toybox.isVisible():
             self.toybox.show()
             self.window.raise_()
@@ -198,6 +219,7 @@ class FelixApp(QObject):
                 return None
         dt *= self.speed
         snap = self.backend.snapshot()
+        self._snap = snap
         self._update_toybox(snap)
         view = self.pet.update(dt, snap)
         if view.animation != self._last_animation:
@@ -239,7 +261,7 @@ class FelixApp(QObject):
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
             ("Sons", self.set_sound, self.sound.enabled if self.sound is not None else False),
-            ("Boîte à jouets", self.set_toybox, self._toybox_wanted()),
+            ("Boîte à jouets", self.set_toybox, self._toybox_on),
             ("Grande taille (×2)", self.set_scale, self.bank.scale == 2),
             *[(label, (lambda _=False, f=factor: self.set_speed(f)), self.speed == factor)
               for label, factor in SPEEDS.items()],

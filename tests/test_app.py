@@ -183,16 +183,72 @@ def test_playing_from_the_toybox_opens_it_until_the_game_ends(bank, tmp_path):
     assert not app.toybox._open
 
 
-def test_dragging_the_toybox_is_not_undone_by_the_app_loop(bank, tmp_path):
+def two_screens(side_by_side=True):
+    first = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080))
+    second = (Monitor(Rect(1920, 0, 1920, 1080), Rect(1920, 0, 1920, 1080)) if side_by_side
+              else Monitor(Rect(0, 1080, 1920, 1080), Rect(0, 1080, 1920, 1080)))
+    return WorldSnapshot(monitors=(first, second))
+
+
+def drag(app, box_from, box_to, steps=20):
+    app.toybox.begin_drag(box_from)
+    for i in range(1, steps + 1):
+        app.toybox.drag_to(box_from + (box_to - box_from) * i // steps)
+        app.tick(1 / 30)  # la boucle tourne pendant le glisser
+    app.toybox.end_drag()
+    app.tick(1 / 30)
+
+
+def test_the_app_loop_never_fights_a_drag_and_saves_what_is_shown(bank, tmp_path):
     app = make_app(bank, tmp_path)
     action(app, "Boîte à jouets")[1](True)
     app.tick(1 / 30)
     start = app.toybox.center_x
-    for _ in range(10):  # glisser pendant que la boucle tourne
-        app.toybox.drag_by(20)
-        app.tick(1 / 30)
+    drag(app, start, start + 200)
     assert app.toybox.center_x == start + 200
-    app.toybox.end_drag()
+    assert int(app.settings.value("toybox/x")) == app.toybox.center_x
+
+
+def test_the_box_can_be_dragged_onto_the_next_monitor(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.backend.set(two_screens())
+    action(app, "Boîte à jouets")[1](True)
     app.tick(1 / 30)
-    assert app.toybox.center_x == start + 200
-    assert int(app.settings.value("toybox/x")) == start + 200
+    drag(app, app.toybox.center_x, 2600)
+    assert app.toybox.center_x == 2600 and int(app.settings.value("toybox/x")) == 2600
+
+
+def test_dropping_past_the_outer_edge_clamps_to_the_nearest_monitor(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.backend.set(two_screens())
+    action(app, "Boîte à jouets")[1](True)
+    app.tick(1 / 30)
+    drag(app, app.toybox.center_x, 4200)  # au-delà du bord droit du 2e écran
+    half = app.toybox.width() // 2
+    assert app.toybox.center_x == 3840 - half
+    assert int(app.settings.value("toybox/x")) == app.toybox.center_x
+
+
+def test_stacked_monitors_keep_the_box_on_the_screen_it_was_put_on(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.backend.set(two_screens(side_by_side=False))
+    app.settings.setValue("toybox/x", 500)
+    app.settings.setValue("toybox/floor", 2160)  # écran du bas
+    action(app, "Boîte à jouets")[1](True)
+    for _ in range(3):
+        app.tick(1 / 30)
+    assert app.toybox.floor_y == 2160
+
+
+def test_the_box_comes_back_when_its_monitor_is_plugged_again(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.backend.set(two_screens())
+    action(app, "Boîte à jouets")[1](True)
+    app.tick(1 / 30)
+    drag(app, app.toybox.center_x, 3000)
+    app.backend.set(SNAP)  # écran externe débranché
+    app.tick(1 / 30)
+    assert app.toybox.center_x < 1920
+    app.backend.set(two_screens())  # rebranché
+    app.tick(1 / 30)
+    assert app.toybox.center_x == 3000

@@ -5,7 +5,7 @@ On la déplace en la faisant glisser le long du sol ; elle s'ouvre pendant la pa
 """
 import sys
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QGuiApplication, QPainter
 from PySide6.QtWidgets import QMenu, QWidget
 
@@ -26,8 +26,8 @@ class ToyboxWindow(QWidget):
         self._use_mask = sys.platform != "win32" and QGuiApplication.platformName() not in ("offscreen", "minimal")
         self.center_x = 0
         self.floor_y = 0
-        self._press = None
-        self._dragged = False
+        self._press_x = None  # abscisse du pointeur à l'appui, tant qu'on n'a pas bougé
+        self._grab = None  # décalage pointeur − centre pendant un glisser
         self.set_bank(bank)
 
     def set_bank(self, bank):
@@ -54,10 +54,19 @@ class ToyboxWindow(QWidget):
         self.center_x, self.floor_y = round(center_x), round(floor_y)
         self.move(self.center_x - self.width() // 2, self.floor_y - self.height())
 
-    def drag_by(self, dx):
-        self.place(self.center_x + dx, self.floor_y)
+    @property
+    def dragging(self):
+        return self._grab is not None
+
+    def begin_drag(self, pointer_x):
+        self._grab = pointer_x - self.center_x
+
+    def drag_to(self, pointer_x):
+        """Le point attrapé reste sous le pointeur ; l'appli recale la boîte au relâchement."""
+        self.place(pointer_x - self._grab, self.floor_y)
 
     def end_drag(self):
+        self._grab = None
         self.on_moved(self.center_x)
 
     def menu_actions(self):
@@ -73,8 +82,7 @@ class ToyboxWindow(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._press = event.globalPosition().toPoint()
-            self._dragged = False
+            self._press_x = event.globalPosition().x()
         elif event.button() == Qt.MouseButton.RightButton:
             menu = QMenu()
             for label, callback in self.menu_actions():
@@ -84,17 +92,14 @@ class ToyboxWindow(QWidget):
             menu.exec(event.globalPosition().toPoint())
 
     def mouseMoveEvent(self, event):
-        if self._press is None:
-            return
-        pos = event.globalPosition().toPoint()
-        dx = pos.x() - self._press.x()
-        if self._dragged or abs(dx) >= DRAG_THRESHOLD:
-            self._dragged = True
-            self.drag_by(dx)
-            self._press = QPoint(pos)
+        x = round(event.globalPosition().x())
+        if self._press_x is not None and not self.dragging and abs(x - self._press_x) >= DRAG_THRESHOLD:
+            self.begin_drag(round(self._press_x))
+        if self.dragging:
+            self.drag_to(x)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._press is not None:
-            self._press = None
-            if self._dragged:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press_x = None
+            if self.dragging:
                 self.end_drag()

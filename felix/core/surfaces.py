@@ -17,7 +17,8 @@ class Segment:
         return self.x0 <= x < self.x1
 
 
-def _monitor_for(monitors, x, y):
+def monitor_for(monitors, x, y):
+    """Moniteur contenant (x, y), sinon le plus proche."""
     for m in monitors:
         if m.geometry.contains(x, y):
             return m
@@ -57,7 +58,7 @@ def compute_surfaces(snap):
         r = win.rect
         if win.fullscreen:
             continue
-        mon = _monitor_for(snap.monitors, r.x + r.w // 2, r.y)
+        mon = monitor_for(snap.monitors, r.x + r.w // 2, r.y)
         if mon is None or r.y <= mon.workarea.y + CEILING_TOLERANCE or r.y >= mon.workarea.bottom:
             continue
         intervals = [(max(r.x, mon.geometry.x), min(r.right, mon.geometry.right))]
