@@ -174,7 +174,7 @@ def test_playing_from_the_toybox_opens_it_until_the_game_ends(bank, tmp_path):
     action(app, "Boîte à jouets")[1](True)
     app.toybox.on_play(app.toybox.center_x)
     app.tick(1 / 30)
-    assert app.pet.scene == "yarn" and app.toybox._open
+    assert app.pet.scene == "toybox_yarn" and app.toybox._open
     for _ in range(int(60 * 30)):
         app.tick(1 / 30)
         if app.pet.scene is None:

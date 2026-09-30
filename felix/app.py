@@ -132,7 +132,7 @@ class FelixApp(QObject):
 
     def _play_from_toybox(self, x):
         self._toybox_game = True
-        self.pet.request("yarn", near=x + self.toybox.width())  # le chat joue à droite de la boîte
+        self.pet.request("toybox_yarn", near=x)  # la pelote sortira de la boîte
 
     def _toybox_home(self, snap):
         """Position enregistrée (x, sol), ou par défaut aux trois quarts du premier écran."""
@@ -164,7 +164,7 @@ class FelixApp(QObject):
     def _update_toybox(self, snap):
         if not self._toybox_on or not snap.monitors:
             return
-        if self._toybox_game and self.pet.scene is None and "yarn" not in self.pet._requests:
+        if self._toybox_game and self.pet.scene is None and "toybox_yarn" not in self.pet._requests:
             self._toybox_game = False
         self.toybox.set_open(self._toybox_game)
         if self.toybox.dragging:

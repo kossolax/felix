@@ -199,3 +199,36 @@ def test_a_request_can_ask_the_cat_to_play_near_a_spot():
         if view.animation in ("yarn_roll_in", "string_leap"):
             break
     assert abs(pet.body.x - 1500) < 260
+
+
+def test_toybox_game_puts_the_cat_left_of_the_box_so_the_ball_pops_out_of_it():
+    from felix.core.pet import TOYBOX_BALL_OFFSET
+    snap = world()
+    pet = settled_pet(snap)
+    pet.body.x = 1600  # à droite de la boîte : il passe devant elle
+    pet.request("toybox_yarn", near=1200)
+    names = []
+    for _ in range(int(40 / DT)):
+        view = pet.update(DT, snap)
+        names.append(view.animation)
+        if view.animation == "yarn_roll_in" and names.count("yarn_roll_in") == 1:
+            assert pet.body.x == 1200 - TOYBOX_BALL_OFFSET and pet.facing == "right"
+    order = ["yarn_roll_in", "yarn_play", "yarn_sit_bat"]
+    idx = [names.index(n) for n in order]
+    assert idx == sorted(idx)
+    assert not {"yarn_unroll", "yarn_follow", "yarn_bat_away", "string_leap"} & set(names[:max(idx) + 1])
+
+
+def test_toybox_near_the_left_edge_puts_the_cat_on_its_right_mirrored():
+    from felix.core.pet import TOYBOX_BALL_OFFSET
+    snap = world()
+    pet = settled_pet(snap)
+    pet.request("toybox_yarn", near=120)  # pas la place à gauche de la boîte
+    seen = False
+    for _ in range(int(40 / DT)):
+        view = pet.update(DT, snap)
+        if view.animation == "yarn_roll_in":
+            assert pet.body.x == 120 + TOYBOX_BALL_OFFSET and view.mirrored
+            seen = True
+            break
+    assert seen

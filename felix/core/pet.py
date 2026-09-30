@@ -46,6 +46,7 @@ CLIMB_SPEED = 70.0  # px/s
 CLIMB_LIFT = 24  # le chat quitte le sol en se dressant contre la vitre
 CLIMB_TOP_DROP = 69  # pieds du chat accroché, sous le bord, au début de climb_top
 CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
+TOYBOX_BALL_OFFSET = 180  # la pelote de yarn_roll_in surgit 180 px à droite du chat : de la boîte
 AWAY_TIME = (60, 300)  # s dehors, après une sortie par la chatière
 OUTING_ROOM = (30, 110)
 
@@ -589,9 +590,13 @@ class Pet:
             if self._requests:
                 self.scene = self._requests.pop(0)
                 near = self._request_near.pop(self.scene, None)
-                if near is not None:
-                    yield from self._go_near(near)
-                yield from getattr(self, f"_do_{self.scene}")()
+                scene = getattr(self, f"_do_{self.scene}")
+                if near is not None and "near" in scene.__code__.co_varnames:
+                    yield from scene(near=near)  # la scène se place elle-même
+                else:
+                    if near is not None:
+                        yield from self._go_near(near)
+                    yield from scene()
                 self.scene = None
                 continue
             if self._still:
@@ -752,6 +757,21 @@ class Pet:
             opening = ("string_leap", "yarn_sit_bat")
         for name in (*opening, "yarn_unroll", "yarn_follow", "yarn_bat_away"):
             yield Play(name)
+
+    def _do_toybox_yarn(self, near=None):
+        """Partie lancée depuis la boîte à jouets (centre `near`) : le chat s'assoit à sa gauche,
+        face à elle ; la pelote en surgit et roule jusqu'à lui, il joue puis la renvoie."""
+        offset = TOYBOX_BALL_OFFSET * self.k
+        seg = self.body.support
+        # à gauche de la boîte si la place le permet, sinon à droite et en miroir
+        mirrored = near is not None and seg is not None and near - offset < seg.x0 + EDGE_MARGIN * self.k
+        if near is not None:
+            yield from self._go_near(near + offset if mirrored else near - offset)
+        yield from self._face("left" if mirrored else "right")
+        yield Play("sit_down", mirrored=mirrored)
+        for name in ("yarn_roll_in", "yarn_play", "yarn_sit_bat"):
+            yield Play(name, mirrored=mirrored)
+        yield Play("sit_up", mirrored=mirrored)
 
     def _climb_target(self, anywhere=False):
         """Bord de fenêtre au-dessus du chat, dont la face est devant lui (ou, si `anywhere`,
