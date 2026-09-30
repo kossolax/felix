@@ -10,6 +10,7 @@ import random
 
 from felix.core.anim import Player
 from felix.core.fun import FunScenes
+from felix.core.mischief import MischiefScenes
 from felix.core.ball import YARN, Ball
 from felix.core.mood import Temperament
 from felix.core.needs import Needs
@@ -41,7 +42,7 @@ MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
-class Pet(FunScenes):
+class Pet(FunScenes, MischiefScenes):
     def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
         self.k = scale  # taille du chat : les distances liées à son corps suivent
@@ -355,6 +356,7 @@ class Pet(FunScenes):
                 continue
             choices = dict(BEHAVIORS)
             choices.update(MISCHIEF)
+            choices.update(self._mischief_ext())
             if self.ball is not None and self.ball.kind is not YARN:
                 choices.pop("yarn")  # pas de pelote tant qu'un ballon traîne
             if self._ball_to_play_with() and self.ball.kind.scene:

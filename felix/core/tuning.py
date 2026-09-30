@@ -87,3 +87,7 @@ FROG_ROUNDS = (2, 4)  # bonds du chat
 FROG_FLEE = (2, 3)  # sauts pour lui échapper
 FROG_ROOM = 150  # px : moins de place devant elle, elle file de l'autre côté, par-dessus le chat
 FROG_WAIT = 25.0  # s : il la regarde partir
+SCRATCH_ROOM = {"left": (145, 65), "right": (65, 145)}  # griffures sur la vitre (extension Mischief)
+SCRATCH_CYCLES = (3, 5)  # l'original en fait 4, de 1,2 s
+PLANT_ROOM = (70, 225)
+BIN_ROOM = (60, 235)

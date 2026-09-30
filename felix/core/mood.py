@@ -4,7 +4,7 @@ import math
 from collections import deque
 
 ACTIVE = frozenset({"walk", "jump", "climb", "stretch", "prints", "fishbowl", "yarn", "string", "hunt", "outing", "edge",
-                    "beachball", "mouse", "frog"})
+                    "beachball", "mouse", "frog", "scratch", "plant", "bin"})
 CALM = frozenset({"sit", "sit_back", "doze", "wash", "stand", "tv"})  # (réclamer à manger ne dépend pas de l'humeur)
 RECENT = 3
 RECENT_FACTORS = (0.1, 0.3, 0.6)  # dernière activité, avant-dernière, …
