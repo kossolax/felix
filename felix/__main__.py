@@ -1,6 +1,8 @@
 """Point d'entrée : python -m felix [--backend …] [--debug-overlay] [--probe] [--selftest]"""
 import argparse
 import json
+import logging
+import logging.handlers
 import random
 import sys
 
@@ -42,25 +44,23 @@ def ensure_sprites(interactive):
 
 
 def create_backend(name, session):
+    import os
     from felix.platform.degraded import QtScreensBackend
-    if name == "x11":
+    log = logging.getLogger("felix")
+    if os.environ.get("QT_QPA_PLATFORM") == "offscreen" and name != "degraded":
+        log.info("plateforme Qt offscreen : backend dégradé")
+        name = "degraded"
+    factories = {
+        "x11": ("felix.platform.x11", "X11Backend"),
+        "windows": ("felix.platform.windows", "WindowsBackend"),
+        "gnome_shell": ("felix.platform.gnome_shell", "GnomeShellBackend"),
+    }
+    if name in factories:
+        module, cls = factories[name]
         try:
-            from felix.platform.x11 import X11Backend
-            return X11Backend()
-        except ImportError:
-            pass
-    elif name == "windows":
-        try:
-            from felix.platform.windows import WindowsBackend
-            return WindowsBackend()
-        except ImportError:
-            pass
-    elif name == "gnome_shell":
-        try:
-            from felix.platform.gnome_shell import GnomeShellBackend
-            return GnomeShellBackend()
-        except ImportError:
-            pass
+            return getattr(__import__(module, fromlist=[cls]), cls)()
+        except Exception:
+            log.exception("backend %s indisponible, repli sur le mode dégradé", name)
     return QtScreensBackend(cursor=session != "wayland")
 
 
@@ -84,16 +84,38 @@ def selftest(felix):
     pet.release()
     for _ in range(120):
         felix.tick(1 / 30)
+    log = logging.getLogger("felix")
     if not pet.body.grounded:
-        print("selftest: le chat n'a pas atterri", file=sys.stderr)
+        log.error("selftest : le chat n'a pas atterri")
         return 1
-    print(f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations)")
+    message = f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations)"
+    log.info(message)
+    print(message)
     return 0
+
+
+def setup_logging():
+    """Journal dans le dossier utilisateur : l'exe Windows fenêtré n'a pas de console."""
+    from felix.paths import user_data_dir
+    handlers = []
+    try:
+        user_data_dir().mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.handlers.RotatingFileHandler(
+            user_data_dir() / "felix.log", maxBytes=256_000, backupCount=2, encoding="utf-8"))
+    except OSError:
+        pass
+    if sys.stderr is not None:
+        handlers.append(logging.StreamHandler())
+    logging.basicConfig(level=logging.INFO, handlers=handlers,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    sys.excepthook = lambda *exc: logging.getLogger("felix").critical("exception non gérée", exc_info=exc)
 
 
 def main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    setup_logging()
     session = prepare_environment()
+    logging.getLogger("felix").info("démarrage (session %s, backend demandé %s)", session, args.backend)
 
     from PySide6.QtWidgets import QApplication, QMessageBox
     from felix.platform.detect import choose_backend

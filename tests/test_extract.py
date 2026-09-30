@@ -26,3 +26,12 @@ def test_verify_sha256_rejects_other_file():
     verify_sha256(data, hashlib.sha256(data).hexdigest())
     with pytest.raises(ValueError):
         verify_sha256(b"autre chose", hashlib.sha256(data).hexdigest())
+
+
+def test_extract_also_writes_the_original_icon(tmp_path):
+    from tests.test_icon import grp_icon, IMG_A
+    inner = build_pe({"FIG": {100: make_fig2(1, 1, [1])}, 14: {100: grp_icon([(32, 32, len(IMG_A), 1)])},
+                      3: {1: IMG_A}})
+    launcher = build_pe({"EXE": {100: struct.pack("<I", len(inner)) + zlib.compress(inner)}})
+    extract_images(launcher, tmp_path)
+    assert (tmp_path / "felix.ico").read_bytes()[:4] == b"\0\0\1\0"

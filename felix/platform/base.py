@@ -1,9 +1,15 @@
 """Interface commune des backends de plateforme."""
+import logging
+import threading
+from dataclasses import dataclass
 from typing import Protocol
 
 from felix.core.world import Monitor, Rect, WinRect, WorldSnapshot
 
-__all__ = ["Backend", "CoordMapper", "Monitor", "Rect", "WinRect", "WorldSnapshot"]
+__all__ = ["Backend", "CoordMapper", "Monitor", "NativeState", "PollingBackend", "Rect", "WinRect",
+           "WorldSnapshot"]
+
+log = logging.getLogger(__name__)
 
 
 class Backend(Protocol):
@@ -47,7 +53,82 @@ class CoordMapper:
         return round(x), round(y)
 
     def rect(self, r):
-        nat, log = self._pair_for(*r.center)
-        x0, y0 = self._map(nat, log, r.x, r.y)
-        x1, y1 = self._map(nat, log, r.right, r.bottom)
+        nat, lgc = self._pair_for(*r.center)
+        x0, y0 = self._map(nat, lgc, r.x, r.y)
+        x1, y1 = self._map(nat, lgc, r.right, r.bottom)
         return Rect(round(x0), round(y0), round(x1) - round(x0), round(y1) - round(y0))
+
+
+@dataclass(frozen=True)
+class NativeState:
+    """État lu par un backend, en coordonnées natives (px physiques, écran X…)."""
+    monitors: list
+    workareas: list
+    windows: list  # WinRect natifs, du haut vers le bas
+
+
+def qt_logical_monitors():
+    from PySide6.QtGui import QGuiApplication
+    return [Rect(s.geometry().x(), s.geometry().y(), s.geometry().width(), s.geometry().height())
+            for s in QGuiApplication.screens()]
+
+
+class PollingBackend:
+    """Lit l'état natif dans un thread (read_native), le convertit en coordonnées Qt dans snapshot()."""
+    name = "polling"
+
+    def __init__(self, interval=0.2, logical_monitors=qt_logical_monitors, cursor=True):
+        self.interval = interval
+        self._logical_monitors = logical_monitors
+        self._cursor = cursor
+        self._native = None
+        self._ready = threading.Event()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, name=f"felix-{self.name}", daemon=True)
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def read_native(self):
+        raise NotImplementedError
+
+    def close_native(self):
+        pass
+
+    def _loop(self):
+        while not self._stop.is_set():
+            try:
+                self._native = self.read_native()
+                self._ready.set()
+            except Exception:
+                log.exception("lecture %s", self.name)
+            self._stop.wait(self.interval)
+        self.close_native()
+
+    def wait_ready(self, timeout=2.0):
+        return self._ready.wait(timeout)
+
+    def snapshot(self):
+        cursor = None
+        if self._cursor:
+            from PySide6.QtGui import QCursor
+            pos = QCursor.pos()
+            cursor = (pos.x(), pos.y())
+        native = self._native
+        if native is None:
+            from felix.platform.degraded import qt_monitors
+            return WorldSnapshot(monitors=qt_monitors(), cursor=cursor)
+        logical = self._logical_monitors()
+        mapper = CoordMapper(native.monitors, logical if len(logical) == len(native.monitors) else native.monitors)
+        return WorldSnapshot(
+            monitors=tuple(Monitor(mapper.rect(g), mapper.rect(wa))
+                           for g, wa in zip(native.monitors, native.workareas)),
+            windows=tuple(WinRect(w.id, mapper.rect(w.rect), w.fullscreen) for w in native.windows),
+            cursor=cursor,
+        )
+
+    def stop(self):
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=2)

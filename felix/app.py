@@ -1,4 +1,6 @@
 """Application : boucle 30 Hz reliant backend de plateforme, cerveau du chat et fenêtre."""
+import sys
+
 from PySide6.QtCore import QElapsedTimer, QObject, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMenu
@@ -8,6 +10,7 @@ from felix.render.pet_window import PetWindow
 
 TICK_MS = 33
 MAX_DT = 0.1
+TOPMOST_MS = 2000
 
 
 class FelixApp(QObject):
@@ -29,10 +32,18 @@ class FelixApp(QObject):
         self.timer.setInterval(TICK_MS)
         self.timer.timeout.connect(self.tick)
         self.clock = QElapsedTimer()
+        self.topmost_timer = None
+        if sys.platform == "win32":
+            from felix.platform.windows import keep_on_top
+            self.topmost_timer = QTimer(self)
+            self.topmost_timer.setInterval(TOPMOST_MS)
+            self.topmost_timer.timeout.connect(lambda: keep_on_top(int(self.window.winId())))
 
     def start(self):
         self.clock.start()
         self.timer.start()
+        if self.topmost_timer is not None:
+            self.topmost_timer.start()
 
     def tick(self, dt=None):
         if dt is None:

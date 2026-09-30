@@ -4,6 +4,7 @@ import urllib.request
 from pathlib import Path
 
 from felix.resources.fig import decode_fig2, unpack_launcher
+from felix.resources.icon import build_ico
 from felix.resources.pe import read_resources
 from felix.resources.png import encode_png
 
@@ -34,7 +35,11 @@ def extract_images(launcher, out_dir):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
-    for (kind, name), blob in read_resources(unpack_launcher(launcher)).items():
+    resources = read_resources(unpack_launcher(launcher))
+    ico = build_ico(resources)
+    if ico:
+        (out_dir / "felix.ico").write_bytes(ico)
+    for (kind, name), blob in resources.items():
         if kind != "FIG":
             continue
         img = decode_fig2(blob)
