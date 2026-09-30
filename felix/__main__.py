@@ -53,7 +53,23 @@ def gnome_helper_available(session):
     return helper_available()
 
 
-def selftest(felix):
+def check_sounds(directory, timeout=5.0):
+    """Charge les sons comme l'appli (QtMultimedia) ; renvoie (prêts, total). Vérifie que le paquet
+    embarque bien ce qu'il faut pour les jouer, sans rien jouer."""
+    import time
+    from PySide6.QtCore import QCoreApplication
+    from PySide6.QtMultimedia import QSoundEffect
+    from felix.render.sound import SoundPlayer
+    effects = [e for variants in SoundPlayer(directory).variants.values() for e in variants]
+    loading = (QSoundEffect.Status.Null, QSoundEffect.Status.Loading)
+    end = time.monotonic() + timeout
+    while any(e.status() in loading for e in effects) and time.monotonic() < end:
+        QCoreApplication.processEvents()
+        time.sleep(0.01)
+    return sum(e.status() == QSoundEffect.Status.Ready for e in effects), len(effects)
+
+
+def selftest(felix, sounds=None):
     felix.window.show()
     for _ in range(300):
         felix.tick(1 / 30)
@@ -78,7 +94,14 @@ def selftest(felix):
         log.error("selftest : le chat n'a pas atterri (%s, scène %s, dehors %s, en (%.0f, %.0f) ; monde %s)",
                   pet.player.animation.name, pet.scene, pet.away, pet.body.x, pet.body.y, world)
         return 1
-    message = f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations)"
+    detail = ""
+    if sounds is not None:
+        ready, total = check_sounds(sounds)
+        if not total or ready < total:
+            log.error("selftest : %d sons prêts sur %d dans %s", ready, total, sounds)
+            return 1
+        detail = f", {ready} sons"
+    message = f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations{detail})"
     log.info(message)
     print(message)
     return 0
@@ -158,7 +181,7 @@ def main(argv=None):
     felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader, sound=sound,
                      settings=settings, bank_loader=bank_loader, speed=args.speed)
     if args.selftest:
-        code = selftest(felix)
+        code = selftest(felix, SOUNDS)
         backend.stop()
         return code
     for scene in filter(None, args.demo.split(",")):

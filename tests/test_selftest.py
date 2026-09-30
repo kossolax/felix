@@ -16,6 +16,7 @@ def test_selftest_runs_the_whole_app_headless(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert "selftest ok" in out.stdout
+    assert "6 sons" in out.stdout  # QtMultimedia charge les sons (le paquet n'embarque que le nécessaire)
 
 
 def test_selftest_calls_back_a_cat_that_went_out(qapp, tmp_path):
