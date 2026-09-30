@@ -181,3 +181,18 @@ def test_playing_from_the_toybox_opens_it_until_the_game_ends(bank, tmp_path):
             break
     app.tick(1 / 30)
     assert not app.toybox._open
+
+
+def test_dragging_the_toybox_is_not_undone_by_the_app_loop(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    action(app, "Boîte à jouets")[1](True)
+    app.tick(1 / 30)
+    start = app.toybox.center_x
+    for _ in range(10):  # glisser pendant que la boucle tourne
+        app.toybox.drag_by(20)
+        app.tick(1 / 30)
+    assert app.toybox.center_x == start + 200
+    app.toybox.end_drag()
+    app.tick(1 / 30)
+    assert app.toybox.center_x == start + 200
+    assert int(app.settings.value("toybox/x")) == start + 200

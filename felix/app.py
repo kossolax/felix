@@ -136,11 +136,14 @@ class FelixApp(QObject):
     def _update_toybox(self, snap):
         if not self._toybox_wanted() or not snap.monitors:
             return
-        try:
-            x = int(self.settings.value("toybox/x"))
-        except (TypeError, ValueError):
-            first = snap.monitors[0].workarea
-            x = first.x + first.w * 3 // 4
+        if self.toybox.isVisible():
+            x = self.toybox.center_x  # déjà posée (et peut-être en train d'être glissée) : elle fait foi
+        else:
+            try:
+                x = int(self.settings.value("toybox/x"))
+            except (TypeError, ValueError):
+                first = snap.monitors[0].workarea
+                x = first.x + first.w * 3 // 4
         mon = next((m for m in snap.monitors if m.workarea.x <= x < m.workarea.right), snap.monitors[0])
         x = min(max(x, mon.workarea.x + self.toybox.width() // 2), mon.workarea.right - self.toybox.width() // 2)
         if not self.toybox.isVisible() or (x, mon.workarea.bottom) != (self.toybox.center_x, self.toybox.floor_y):
