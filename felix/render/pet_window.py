@@ -63,14 +63,18 @@ class PetWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setWindowTitle("Felix")
-        self.bank = bank
-        self.extents = compute_extents(bank.animations)
-        self.setFixedSize(self.extents.width, self.extents.height)
+        self.set_bank(bank)
         self._use_mask = sys.platform != "win32"  # Windows : test de clic par pixel des fenêtres layered
         self._key = None
         self._pixmap = None
         self._offset = (0, 0)
         self._dragging = False
+
+    def set_bank(self, bank):
+        self.bank = bank
+        self.extents = compute_extents(bank.animations)
+        self.setFixedSize(self.extents.width, self.extents.height)
+        self._key = None
 
     def show_view(self, view):
         if view.hidden:

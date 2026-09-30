@@ -113,3 +113,10 @@ def test_pet_climbs_windows_of_a_recorded_gnome_scene():
 
     run(new_pet(0), snap, 180, check)
     assert {w.id for w in snap.windows} & owners
+
+
+def test_a_bigger_cat_has_its_head_higher():
+    small, big = Pet(make_anims()), Pet(make_anims(), scale=2)
+    for pet in (small, big):
+        pet.update(DT, world())
+    assert (big.body.y - big.head()[1]) == 2 * (small.body.y - small.head()[1])

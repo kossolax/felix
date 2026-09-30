@@ -73,3 +73,15 @@ def test_marks_are_converted_to_sheet_rects_of_the_last_frame():
     a = load_manifest(data, {1: (40, 20)}, bbox_all)["a"]
     # dernière image = cellule (20, 0) : marque à (23, 4) dans la planche, et (3, 4) dans la cellule
     assert a.marks == (((23, 4, 5, 6), (3, 4)),)
+
+
+def test_scale_multiplies_every_coordinate():
+    data = {"sheets": {"1": [2, 1]},
+            "animations": {"a": {"sheet": 1, "frames": "0-1", "anchor": [3, 7], "dx": 4,
+                                 "exit": [5, 7], "marks": [[1, 2, 3, 4]]}}}
+    one = load_manifest(data, {1: (20, 10)}, bbox_all)["a"]
+    two = load_manifest(data, {1: (40, 20)}, bbox_all, scale=2)["a"]
+    assert two.frames[1].rect == tuple(2 * v for v in one.frames[1].rect)
+    assert two.frames[0].anchor == (6, 14)
+    assert (two.dx, two.shift) == (8, (4, 0))
+    assert two.marks == (((2 * 10 + 2, 4, 6, 8), (2, 4)),)

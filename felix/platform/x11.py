@@ -3,7 +3,10 @@
 Le thread produit un état « natif » (pixels X) ; snapshot(), appelé depuis le
 thread Qt, le convertit en coordonnées logiques Qt et ajoute le curseur.
 """
+import logging
 import os
+import select
+import time
 
 from Xlib import X, display, error
 from Xlib.ext import randr
@@ -11,6 +14,13 @@ from Xlib.ext import randr
 from felix.core.world import Rect, WinRect
 from felix.platform.base import NativeState, PollingBackend, qt_logical_monitors
 from felix.platform.x11_parse import frame_rect, is_candidate, workareas_for
+
+log = logging.getLogger(__name__)
+
+COALESCE = 0.033  # regroupe les rafales d'événements (déplacement d'une fenêtre à la souris…)
+SAFETY = 2.0  # relecture de sécurité même sans événement
+TOPLEVEL_EVENTS = (X.ConfigureNotify, X.MapNotify, X.UnmapNotify, X.DestroyNotify, X.CreateNotify,
+                   X.ReparentNotify)
 
 
 class X11Reader:
@@ -80,6 +90,33 @@ class X11Reader:
                 windows.append(w)
         return NativeState(monitors, workareas_for(values, monitors), windows)
 
+    def watch(self):
+        """S'abonne aux changements de la racine : propriétés EWMH et fenêtres de premier niveau."""
+        self.root.change_attributes(event_mask=X.PropertyChangeMask | X.SubstructureNotifyMask)
+        self.d.flush()
+
+    def drain(self):
+        """Vide la file d'événements ; True si l'un d'eux concerne les fenêtres gérées."""
+        relevant = False
+        while self.d.pending_events():
+            ev = self.d.next_event()
+            if ev.type == X.PropertyNotify:
+                relevant = True
+            elif ev.type in TOPLEVEL_EVENTS and not getattr(ev, "override", False):
+                relevant = True  # les fenêtres override-redirect (dont le chat) bougent sans cesse
+        return relevant
+
+    def wait_for_change(self, timeout, stop):
+        deadline = time.monotonic() + timeout
+        while not stop.is_set():
+            if self.drain():
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            select.select([self.d.fileno()], [], [], min(remaining, 0.25))
+        return False
+
     def close(self):
         self.d.close()
 
@@ -87,13 +124,21 @@ class X11Reader:
 class X11Backend(PollingBackend):
     name = "x11"
 
-    def __init__(self, display_name=None, interval=0.2, logical_monitors=qt_logical_monitors, cursor=True):
+    def __init__(self, display_name=None, interval=SAFETY, logical_monitors=qt_logical_monitors, cursor=True):
         super().__init__(interval, logical_monitors, cursor)
         self.reader = X11Reader(display_name)
         self.start()
 
-    def read_native(self):
-        return self.reader.read()
-
-    def close_native(self):
+    def _loop(self):
+        """Relit l'état à chaque changement signalé par le serveur X, et au moins toutes les SAFETY s."""
+        self.reader.watch()
+        while not self._stop.is_set():
+            try:
+                self._native = self.reader.read()
+                self._ready.set()
+            except Exception:
+                log.exception("lecture X11")
+            if self.reader.wait_for_change(min(self.interval, SAFETY), self._stop):
+                self._stop.wait(COALESCE)
+                self.reader.drain()
         self.reader.close()

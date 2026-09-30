@@ -41,3 +41,12 @@ def test_real_manifest_matches_the_extracted_sheets(qapp):
     pix = bank.pixmap(walk.frames[0])
     assert (pix.width(), pix.height()) == walk.frames[0].rect[2:]
     assert bank.pixmap(walk.frames[0], mirrored=True).size() == pix.size()
+
+
+@pytest.mark.skipif(not ORIGINAL.exists(), reason="sprites d'origine non extraits")
+def test_bank_can_be_loaded_twice_as_big(qapp):
+    one = SpriteBank.load(ROOT / "sprites" / "felix.json", ORIGINAL)
+    two = SpriteBank.load(ROOT / "sprites" / "felix.json", ORIGINAL, scale=2)
+    f1, f2 = one.animations["walk_right"].frames[0], two.animations["walk_right"].frames[0]
+    assert two.pixmap(f2).width() == 2 * one.pixmap(f1).width()
+    assert two.animations["walk_right"].dx == 2 * one.animations["walk_right"].dx

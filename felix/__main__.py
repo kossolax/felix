@@ -147,7 +147,17 @@ def main(argv=None):
     from felix.paths import MANIFEST
     from felix.render.sprites import SpriteBank
 
-    bank = SpriteBank.load(MANIFEST, sprites)
+    from PySide6.QtCore import QSettings
+    settings = QSettings("felix", "felix")
+    try:
+        scale = 2 if int(settings.value("scale", 1)) == 2 else 1
+    except (TypeError, ValueError):
+        scale = 1
+
+    def bank_loader(factor):
+        return SpriteBank.load(MANIFEST, sprites, scale=factor)
+
+    bank = bank_loader(scale)
     rng = random.Random(args.seed) if args.seed is not None else None
     upgrader = None
     if backend.name == "degraded" and session == "wayland" and args.backend == "auto":
@@ -157,7 +167,8 @@ def main(argv=None):
     from felix.paths import SOUNDS
     from felix.render.sound import SoundPlayer
     sound = SoundPlayer(SOUNDS) if SOUNDS.exists() and not args.selftest else None
-    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader, sound=sound)
+    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader, sound=sound,
+                     settings=settings, bank_loader=bank_loader)
     if args.selftest:
         code = selftest(felix)
         backend.stop()

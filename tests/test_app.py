@@ -95,3 +95,37 @@ def test_prop_events_reach_the_prop_manager(bank, tmp_path):
     app = make_app(bank, tmp_path)
     app.dispatch(("claws", 300.0, 500, 700))
     assert len(app.props.windows) == 1
+
+
+def test_big_size_is_applied_live_and_remembered(bank, tmp_path):
+    from felix.paths import MANIFEST
+    from felix.render.sprites import SpriteBank
+
+    def loader(scale):
+        return SpriteBank.load(MANIFEST, ROOT / "assets" / "original", scale=scale)
+
+    app = make_app(bank, tmp_path)
+    app.bank_loader = loader
+    for _ in range(60):
+        app.tick(1 / 30)
+    width = app.window.width()
+    action(app, "Grande taille")[1](True)
+    app.tick(1 / 30)
+    assert app.pet.k == 2 and app.window.width() == 2 * width
+    assert int(app.settings.value("scale")) == 2
+
+
+def test_about_text_credits_the_original_and_the_sounds(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    text = app.about_text()
+    assert "Felix II" in text and "Wikimedia" in text
+    assert any(item and item[0].startswith("À propos") for item in app.menu_actions())
+
+
+def test_tray_menu_mirrors_the_cat_menu(bank, tmp_path):
+    from PySide6.QtWidgets import QMenu
+    app = make_app(bank, tmp_path)
+    menu = QMenu()
+    app.fill_menu(menu)
+    labels = [a.text() for a in menu.actions() if not a.isSeparator()]
+    assert labels[:2] == ["Nourrir", "Donner du lait"] and labels[-1] == "Quitter"

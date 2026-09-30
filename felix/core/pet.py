@@ -147,7 +147,7 @@ class WalkTo:
         dx = pet.player.animation.dx * steps
         x = pet.body.x + dx
         seg = pet.body.support
-        lo, hi = seg.x0 + EDGE_MARGIN, seg.x1 - EDGE_MARGIN
+        lo, hi = seg.x0 + EDGE_MARGIN * pet.k, seg.x1 - EDGE_MARGIN * pet.k
         reached = (x >= self.target) if dx > 0 else (x <= self.target)
         if reached:
             x = self.target
@@ -184,7 +184,7 @@ class Watch:
             return False
         self.away = 0.0
         self.direction = direction_to(hx, hy, *cursor)
-        if dist <= PAW_RANGE:
+        if dist <= PAW_RANGE * pet.k:
             self.reason = "paw"
             return True
         name = f"head_{self.direction}"
@@ -205,17 +205,17 @@ class Climb:
 
     def start(self, pet):
         pet.body.support = None
-        pet.body.y -= CLIMB_LIFT
+        pet.body.y -= CLIMB_LIFT * pet.k
         self.bottom = pet.body.y
         pet.play("climb")
 
     def update(self, pet, dt):
         pet.player.update(dt)
-        target = self.top + CLIMB_TOP_DROP
-        pet.body.y = max(target, pet.body.y - CLIMB_SPEED * dt)
+        target = self.top + CLIMB_TOP_DROP * pet.k
+        pet.body.y = max(target, pet.body.y - CLIMB_SPEED * pet.k * dt)
         if pet.body.y > target:
             return False
-        pet.emit(("claws", pet.body.x, self.top + CLIMB_TOP_DROP // 2, self.bottom))
+        pet.emit(("claws", pet.body.x, self.top + CLIMB_TOP_DROP * pet.k // 2, self.bottom))
         return True
 
 
@@ -290,8 +290,9 @@ CLIMB_WEIGHT = 10
 
 
 class Pet:
-    def __init__(self, animations, rng=None, needs=None):
+    def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
+        self.k = scale  # taille du chat : les distances liées à son corps suivent
         self.rng = rng or random.Random()
         self.needs = needs if needs is not None else Needs()
         self._events = []
@@ -316,6 +317,15 @@ class Pet:
         self._next_hunt = 0.0
 
     # -- animation --
+    def set_animations(self, animations, scale):
+        """Changement de taille à chaud : mêmes animations, autre échelle."""
+        self.anims = animations
+        self.k = scale
+        if self.player is not None:
+            index = self.player.index
+            self.player = Player(animations[self.player.animation.name])
+            self.player.index = min(index, len(self.player.animation.frames) - 1)
+
     def play(self, name, mirrored=False):
         anim = self.anims[name]
         self.player = Player(anim)
@@ -329,7 +339,8 @@ class Pet:
             return
         dx = -delta[0] if self.mirrored else delta[0]
         seg = self.body.support
-        self.body.x = min(max(self.body.x + dx, seg.x0 + EDGE_MARGIN), seg.x1 - EDGE_MARGIN)
+        m = EDGE_MARGIN * self.k
+        self.body.x = min(max(self.body.x + dx, seg.x0 + m), seg.x1 - m)
 
     def emit(self, event):
         self._events.append(event)
@@ -361,7 +372,7 @@ class Pet:
         return out
 
     def head(self):
-        return self.body.x, self.body.y - HEAD_HEIGHT
+        return self.body.x, self.body.y - HEAD_HEIGHT * self.k
 
     def cursor_near(self):
         cursor = self.snap.cursor if self.snap else None
@@ -516,7 +527,8 @@ class Pet:
 
     def _do_walk(self):
         seg = self.body.support
-        target = self.rng.uniform(seg.x0 + EDGE_MARGIN, seg.x1 - EDGE_MARGIN)
+        m = EDGE_MARGIN * self.k
+        target = self.rng.uniform(seg.x0 + m, max(seg.x0 + m, seg.x1 - m))
         if abs(target - self.body.x) < 20:
             return
         yield from self._face("right" if target > self.body.x else "left")
@@ -565,7 +577,7 @@ class Pet:
 
     def _make_room(self, left, right):
         seg = self.body.support
-        lo, hi = seg.x0 + left, seg.x1 - right
+        lo, hi = seg.x0 + left * self.k, seg.x1 - right * self.k
         target = min(max(self.body.x, lo), hi) if lo <= hi else (seg.x0 + seg.x1) / 2
         if abs(target - self.body.x) > 5:
             yield from self._face("right" if target > self.body.x else "left")
@@ -629,11 +641,11 @@ class Pet:
             if s.owner is None or s == support:
                 continue
             if anywhere:
-                if support is None or s.x1 - EDGE_MARGIN <= support.x0 or s.x0 + EDGE_MARGIN >= support.x1:
+                if support is None or s.x1 - EDGE_MARGIN * self.k <= support.x0 or s.x0 + EDGE_MARGIN * self.k >= support.x1:
                     continue
-            elif not (s.x0 + EDGE_MARGIN <= body.x < s.x1 - EDGE_MARGIN):
+            elif not (s.x0 + EDGE_MARGIN * self.k <= body.x < s.x1 - EDGE_MARGIN * self.k):
                 continue
-            if body.y - s.y < max(CLIMB_MIN, CLIMB_TOP_DROP + CLIMB_LIFT) or body.y - s.y <= 0:
+            if body.y - s.y < self.k * max(CLIMB_MIN, CLIMB_TOP_DROP + CLIMB_LIFT):
                 continue
             if best is None or s.y > best.y:
                 best = s
@@ -646,8 +658,8 @@ class Pet:
             if far is None:
                 return
             seg = self.body.support
-            lo = max(far.x0, seg.x0) + EDGE_MARGIN
-            hi = min(far.x1, seg.x1) - EDGE_MARGIN
+            lo = max(far.x0, seg.x0) + EDGE_MARGIN * self.k
+            hi = min(far.x1, seg.x1) - EDGE_MARGIN * self.k
             x = min(max(self.body.x, lo), hi)
             yield from self._face("right" if x > self.body.x else "left")
             yield WalkTo(x, idle=False)
@@ -697,7 +709,7 @@ class Pet:
         direction = "right" if cx > self.body.x else "left"
         sign = 1 if direction == "right" else -1
         yield from self._face(direction)
-        yield WalkTo(cx - sign * HUNT_APPROACH, idle=False)
+        yield WalkTo(cx - sign * HUNT_APPROACH * self.k, idle=False)
         yield Play(f"stalk_{direction}")
         yield Play("pounce", mirrored=direction == "left")
         self._next_hunt = self.clock + HUNT_COOLDOWN
@@ -708,7 +720,7 @@ class Pet:
         for s in self.segments:
             if s == body.support or not (body.y - JUMP_UP <= s.y <= body.y + JUMP_DOWN) or s.y == body.y:
                 continue
-            lo, hi = s.x0 + EDGE_MARGIN, s.x1 - EDGE_MARGIN
+            lo, hi = s.x0 + EDGE_MARGIN * self.k, s.x1 - EDGE_MARGIN * self.k
             if lo >= hi:
                 continue
             nearest = min(max(body.x, lo), hi)

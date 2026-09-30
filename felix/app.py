@@ -5,9 +5,10 @@ import sys
 import time
 
 from PySide6.QtCore import QElapsedTimer, QObject, QSettings, Qt, QTimer
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from felix import autostart
 from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.render.pet_window import PetWindow
@@ -24,13 +25,15 @@ DRAG_THRESHOLD = 6  # px : en dessous, un clic est une caresse
 
 
 class FelixApp(QObject):
-    def __init__(self, bank, backend, rng=None, debug=False, upgrader=None, settings=None, sound=None):
+    def __init__(self, bank, backend, rng=None, debug=False, upgrader=None, settings=None, sound=None,
+                 bank_loader=None):
         super().__init__()
         self.bank = bank
+        self.bank_loader = bank_loader  # scale -> SpriteBank, pour changer de taille à chaud
         self.backend = backend
         self.settings = settings if settings is not None else QSettings("felix", "felix")
         self.sound = sound
-        self.pet = Pet(bank.animations, rng, needs=self._load_needs())
+        self.pet = Pet(bank.animations, rng, needs=self._load_needs(), scale=bank.scale)
         self.window = PetWindow(bank)
         self._last_animation = None
         self._press = None  # point d'appui tant qu'on n'a pas vraiment tiré le chat
@@ -41,6 +44,9 @@ class FelixApp(QObject):
             self.sound.enabled = self.settings.value("sound", True) not in (False, "false")
         self.window.menu_requested.connect(self.show_menu)
         self.props = PropManager(bank, on_created=self.window.raise_)
+        self.tray = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self._make_tray()
         self.overlay = None
         if debug:
             self.toggle_debug(True)
@@ -90,6 +96,16 @@ class FelixApp(QObject):
             self.pet.stroke()
         elif self.pet.mode == "held":
             self.pet.release()
+
+    def set_scale(self, big):
+        scale = 2 if big else 1
+        self.settings.setValue("scale", scale)
+        if self.bank_loader is None or scale == self.bank.scale:
+            return
+        self.bank = self.bank_loader(scale)
+        self.props.bank = self.bank
+        self.window.set_bank(self.bank)
+        self.pet.set_animations(self.bank.animations, scale)
 
     def set_sound(self, on):
         if self.sound is not None:
@@ -158,14 +174,39 @@ class FelixApp(QObject):
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
             ("Sons", self.set_sound, self.sound.enabled if self.sound is not None else False),
+            ("Grande taille (×2)", self.set_scale, self.bank.scale == 2),
+            ("Lancer au démarrage", autostart.set_enabled, autostart.is_enabled()),
             None,
             ("Débogage", self.toggle_debug, self.overlay is not None),
+            ("À propos…", lambda _=False: self.show_about(), None),
             None,
             ("Quitter", lambda _=False: self.quit(), None),
         ]
 
-    def show_menu(self, pos):
-        menu = QMenu()
+    def _make_tray(self):
+        walk = self.bank.animations["sit_front"].frames[0]
+        icon = QIcon(QPixmap(self.bank.pixmap(walk)))
+        self.tray = QSystemTrayIcon(icon, self)
+        self.tray.setToolTip("Virtual Felix")
+        self._tray_menu = QMenu()
+        self._tray_menu.aboutToShow.connect(lambda: self.fill_menu(self._tray_menu))
+        self.tray.setContextMenu(self._tray_menu)
+        self.tray.show()
+
+    def about_text(self):
+        return ("<b>Virtual Felix</b> — le chat de bureau, de retour sur Linux et Windows.<br><br>"
+                "Graphismes : <i>Felix II / Virtual Felix</i> (ScreenMates, AdTools et Ogilvy pour Purina "
+                "Felix, 1999-2000), extraits de l'exécutable d'origine conservé sur archive.org, pour un "
+                "usage personnel.<br>"
+                "Sons : enregistrements CC0 et du domaine public de Wikimedia Commons (voir "
+                "assets/sounds/CREDITS.md).<br><br>"
+                "Clic gauche : caresser — glisser : attraper — clic droit : ce menu.")
+
+    def show_about(self):
+        QMessageBox.about(None, "À propos de Virtual Felix", self.about_text())
+
+    def fill_menu(self, menu):
+        menu.clear()
         for item in self.menu_actions():
             if item is None:
                 menu.addSeparator()
@@ -180,10 +221,16 @@ class FelixApp(QObject):
                 action.setCheckable(True)
                 action.setChecked(checked)
             menu.addAction(action)
+
+    def show_menu(self, pos):
+        menu = QMenu()
+        self.fill_menu(menu)
         menu.exec(pos)
 
     def quit(self):
         self.save()
         self.timer.stop()
+        if self.tray is not None:
+            self.tray.hide()
         self.backend.stop()
         QApplication.quit()

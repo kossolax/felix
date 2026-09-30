@@ -35,42 +35,42 @@ def opaque_bbox(img, rect):
 
 
 class SpriteBank:
-    def __init__(self, sheets, animations):
-        self.sheets = sheets  # {id: QImage}
+    def __init__(self, sheets, animations, scale=1):
+        self.sheets = sheets  # {id: QImage}, déjà agrandies
         self.animations = animations
+        self.scale = scale
         self._pixmaps = {}
         self._masks = {}
 
     @classmethod
-    def load(cls, manifest_path, images_dir):
+    def load(cls, manifest_path, images_dir, scale=1):
         data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
         sheets = {}
         for key in data.get("sheets", {}):
             img = QImage(str(Path(images_dir) / f"fig_{key}.png"))
             if img.isNull():
                 raise FileNotFoundError(f"planche fig_{key}.png introuvable dans {images_dir}")
+            if scale != 1:  # pixel art : agrandissement entier, sans lissage
+                img = img.scaled(img.width() * scale, img.height() * scale)
             sheets[int(key)] = _argb(img)
         sizes = {sid: (img.width(), img.height()) for sid, img in sheets.items()}
-        anims = load_manifest(data, sizes, lambda sid, rect: opaque_bbox(sheets[sid], rect))
-        return cls(sheets, anims)
+        anims = load_manifest(data, sizes, lambda sid, rect: opaque_bbox(sheets[sid], rect), scale=scale)
+        return cls(sheets, anims, scale)
 
     def image(self, frame, mirrored=False):
         img = self.sheets[frame.sheet].copy(QRect(*frame.rect))
         return img.transformed(QTransform.fromScale(-1, 1)) if mirrored else img
 
-    def pixmap(self, frame, mirrored=False, scale=1):
-        key = (frame.sheet, frame.rect, mirrored, scale)
+    def pixmap(self, frame, mirrored=False):
+        key = (frame.sheet, frame.rect, mirrored)
         if key not in self._pixmaps:
-            pix = QPixmap.fromImage(self.image(frame, mirrored))
-            if scale != 1:
-                pix = pix.transformed(QTransform.fromScale(scale, scale))  # sans lissage
-            self._pixmaps[key] = pix
+            self._pixmaps[key] = QPixmap.fromImage(self.image(frame, mirrored))
         return self._pixmaps[key]
 
-    def mask(self, frame, mirrored=False, scale=1):
+    def mask(self, frame, mirrored=False):
         """Région opaque de l'image, pour QWidget.setMask (clics traversants sous X11)."""
-        key = (frame.sheet, frame.rect, mirrored, scale)
+        key = (frame.sheet, frame.rect, mirrored)
         if key not in self._masks:
-            bitmap = QBitmap.fromImage(self.pixmap(frame, mirrored, scale).toImage().createAlphaMask())
+            bitmap = QBitmap.fromImage(self.pixmap(frame, mirrored).toImage().createAlphaMask())
             self._masks[key] = QRegion(bitmap)
         return self._masks[key]

@@ -111,3 +111,23 @@ def test_backend_maps_native_state_to_a_snapshot(xserver, qapp):
         assert snap.monitors[0].geometry == Rect(0, 0, 800, 450)
     finally:
         backend.stop()
+
+
+def test_backend_reacts_to_a_moved_window_without_waiting_for_the_poll(xserver, qapp):
+    from felix.platform.x11 import X11Backend
+    name, d = xserver
+    win = make_window(d, 200, 300, 400, 200)
+    set_root(d, "_NET_CLIENT_LIST_STACKING", "window", [win.id])
+    d.sync()
+    backend = X11Backend(name, interval=10.0, logical_monitors=lambda: [Rect(0, 0, 1600, 900)])
+    try:
+        assert backend.wait_ready(2)
+        time.sleep(0.2)
+        win.configure(x=500, y=100)
+        d.sync()
+        deadline = time.time() + 1.0
+        while time.time() < deadline and backend.snapshot().windows[0].rect.x != 500:
+            time.sleep(0.02)
+        assert backend.snapshot().windows[0].rect == Rect(500, 100, 400, 200)
+    finally:
+        backend.stop()
