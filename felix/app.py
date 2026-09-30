@@ -11,12 +11,16 @@ from PySide6.QtWidgets import QApplication, QMenu
 from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.render.pet_window import PetWindow
+from felix.render.props import PropManager
+
+log = logging.getLogger("felix")
 
 TICK_MS = 33
 MAX_DT = 0.1
 TOPMOST_MS = 2000
 UPGRADE_MS = 5000
 SAVE_MS = 60_000
+DRAG_THRESHOLD = 6  # px : en dessous, un clic est une caresse
 
 
 class FelixApp(QObject):
@@ -28,10 +32,15 @@ class FelixApp(QObject):
         self.sound = sound
         self.pet = Pet(bank.animations, rng, needs=self._load_needs())
         self.window = PetWindow(bank)
-        self.window.grabbed.connect(lambda p: self.pet.grab(p.x(), p.y()))
-        self.window.dragged.connect(lambda p: self.pet.drag(p.x(), p.y()))
-        self.window.released.connect(lambda p: self.pet.release())
+        self._last_animation = None
+        self._press = None  # point d'appui tant qu'on n'a pas vraiment tiré le chat
+        self.window.grabbed.connect(self._on_press)
+        self.window.dragged.connect(self._on_drag)
+        self.window.released.connect(self._on_release)
+        if self.sound is not None:
+            self.sound.enabled = self.settings.value("sound", True) not in (False, "false")
         self.window.menu_requested.connect(self.show_menu)
+        self.props = PropManager(bank, on_created=self.window.raise_)
         self.overlay = None
         if debug:
             self.toggle_debug(True)
@@ -59,9 +68,33 @@ class FelixApp(QObject):
     def _try_upgrade(self, upgrader):
         new = upgrader.poll(self.backend)
         if new is not None:
-            logging.getLogger("felix").info("backend : passage de %s à %s", self.backend.name, new.name)
+            log.info("backend : passage de %s à %s", self.backend.name, new.name)
             self.backend = new
             self.upgrade_timer.stop()
+
+    def _on_press(self, pos):
+        self._press = pos
+
+    def _on_drag(self, pos):
+        if self._press is not None:
+            if (pos - self._press).manhattanLength() < DRAG_THRESHOLD:
+                return
+            self.pet.grab(self._press.x(), self._press.y())
+            self._press = None
+        if self.pet.mode == "held":
+            self.pet.drag(pos.x(), pos.y())
+
+    def _on_release(self, _pos):
+        if self._press is not None:
+            self._press = None
+            self.pet.stroke()
+        elif self.pet.mode == "held":
+            self.pet.release()
+
+    def set_sound(self, on):
+        if self.sound is not None:
+            self.sound.enabled = on
+        self.settings.setValue("sound", on)
 
     def _load_needs(self):
         try:
@@ -86,13 +119,22 @@ class FelixApp(QObject):
             dt = min(self.clock.restart() / 1000.0, MAX_DT)
         snap = self.backend.snapshot()
         view = self.pet.update(dt, snap)
+        if view.animation != self._last_animation:
+            self._last_animation = view.animation
+            log.debug("animation %s", view.animation)
         self.window.show_view(view)
-        if self.sound is not None:
-            for event in view.events:
-                self.sound.play(event)
+        for event in view.events:
+            self.dispatch(event)
         if self.overlay is not None:
             self.overlay.set_state(snap, self.pet)
         return view
+
+    def dispatch(self, event):
+        """Événement du chat : un son (str) ou un accessoire à afficher (tuple)."""
+        if isinstance(event, tuple):
+            self.props.handle(event)
+        elif self.sound is not None:
+            self.sound.play(event)
 
     def toggle_debug(self, on):
         from felix.render.debug_overlay import DebugOverlay
@@ -110,9 +152,12 @@ class FelixApp(QObject):
         return [
             ("Nourrir", lambda _=False: self.pet.request("feed"), None),
             ("Donner du lait", lambda _=False: self.pet.request("drink"), None),
+            ("Jouer avec la pelote", lambda _=False: self.pet.request("yarn"), None),
+            ("Regarder la télé", lambda _=False: self.pet.request("tv"), None),
             (status, None, None),
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
+            ("Sons", self.set_sound, self.sound.enabled if self.sound is not None else False),
             None,
             ("Débogage", self.toggle_debug, self.overlay is not None),
             None,

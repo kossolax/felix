@@ -21,6 +21,7 @@ class Animation:
     dx: float = 0  # déplacement horizontal par image
     facing: str = "front"
     shift: tuple = (0, 0)  # déplacement de la position une fois l'animation finie
+    marks: tuple = ()  # ((rect dans la planche), (x, y) dans la cellule) : traces laissées à la fin
 
 
 class Player:

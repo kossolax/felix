@@ -107,7 +107,9 @@ def setup_logging():
         pass
     if sys.stderr is not None:
         handlers.append(logging.StreamHandler())
-    logging.basicConfig(level=logging.INFO, handlers=handlers,
+    import os
+    level = getattr(logging, os.environ.get("FELIX_LOG", "INFO").upper(), logging.INFO)
+    logging.basicConfig(level=level, handlers=handlers,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     sys.excepthook = lambda *exc: logging.getLogger("felix").critical("exception non gérée", exc_info=exc)
 
@@ -152,7 +154,10 @@ def main(argv=None):
         from felix.platform.detect import BackendUpgrader
         from felix.platform.gnome_shell import GnomeShellBackend
         upgrader = BackendUpgrader(lambda: gnome_helper_available(session), GnomeShellBackend)
-    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader)
+    from felix.paths import SOUNDS
+    from felix.render.sound import SoundPlayer
+    sound = SoundPlayer(SOUNDS) if SOUNDS.exists() and not args.selftest else None
+    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader, sound=sound)
     if args.selftest:
         code = selftest(felix)
         backend.stop()

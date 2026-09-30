@@ -61,6 +61,8 @@ def load_manifest(data, sheet_sizes, bbox_of):
         shift = tuple(spec.get("shift", (0, 0)))
         if "exit" in spec:  # pieds du chat sur la dernière image : la position le rejoint à la fin
             shift = (spec["exit"][0] - anchors[-1][0], 0)
+        lx, ly = rects[-1][:2]
+        marks = tuple(((lx + m[0], ly + m[1], m[2], m[3]), (m[0], m[1])) for m in spec.get("marks", []))
         anims[name] = Animation(
             name=name,
             sheet=sid,
@@ -70,5 +72,6 @@ def load_manifest(data, sheet_sizes, bbox_of):
             dx=spec.get("dx", 0),
             facing=spec.get("facing", "front"),
             shift=shift,
+            marks=marks,
         )
     return anims

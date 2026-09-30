@@ -77,3 +77,11 @@ def test_a_second_request_waits_for_the_current_scene():
     names, _ = run(pet, 80)
     assert names.index("cupboard_leave") < names.index("milk_arrive")
     assert pet.needs.hunger < 0.05 and pet.needs.thirst < 0.05
+
+
+def test_stroking_the_cat_makes_it_sit_and_purr():
+    pet = settled_pet()
+    pet.stroke()
+    names, events = run(pet, 6)
+    assert "purr" in events
+    assert "sit_front" in names

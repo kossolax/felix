@@ -65,3 +65,11 @@ def test_exit_point_becomes_the_end_shift_relative_to_the_anchor():
             "animations": {"scene": {"sheet": 1, "frames": "0", "anchor": [80, 120], "exit": [30, 118]}}}
     a = load_manifest(data, {1: (200, 130)}, bbox_all)["scene"]
     assert a.shift == (-50, 0)
+
+
+def test_marks_are_converted_to_sheet_rects_of_the_last_frame():
+    data = {"sheets": {"1": [2, 1]},
+            "animations": {"a": {"sheet": 1, "frames": "0-1", "marks": [[3, 4, 5, 6]]}}}
+    a = load_manifest(data, {1: (40, 20)}, bbox_all)["a"]
+    # dernière image = cellule (20, 0) : marque à (23, 4) dans la planche, et (3, 4) dans la cellule
+    assert a.marks == (((23, 4, 5, 6), (3, 4)),)

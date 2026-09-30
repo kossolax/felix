@@ -36,6 +36,15 @@ CURSOR_JITTER = 3
 FEED_ROOM = (45, 110)  # place nécessaire à gauche / à droite du chat pour le placard
 DRINK_ROOM = (80, 125)  # … pour la bouteille de lait
 EAT_TIME = 4.0
+PRINTS_ROOM = (65, 50)
+FISHBOWL_ROOM = (35, 50)
+TV_ROOM = (45, 45)
+YARN_ROOM = (30, 200)  # la pelote roule vers la droite
+TV_TIME = (12, 25)
+CLIMB_SPEED = 70.0  # px/s
+CLIMB_LIFT = 24  # le chat quitte le sol en se dressant contre la vitre
+CLIMB_TOP_DROP = 69  # pieds du chat accroché, sous le bord, au début de climb_top
+CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
 
 
 @dataclass
@@ -93,6 +102,8 @@ class Play:
         if anim.loop:
             return self.frames >= len(anim.frames)
         if pet.player.finished:
+            if anim.marks:
+                pet.emit(("marks", pet.marks_on_screen(anim)))
             pet.shift(anim.shift)
             return True
         return False
@@ -185,6 +196,51 @@ class Watch:
         return False
 
 
+class Climb:
+    """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord)."""
+    airborne = True
+
+    def __init__(self, top):
+        self.top = top
+
+    def start(self, pet):
+        pet.body.support = None
+        pet.body.y -= CLIMB_LIFT
+        self.bottom = pet.body.y
+        pet.play("climb")
+
+    def update(self, pet, dt):
+        pet.player.update(dt)
+        target = self.top + CLIMB_TOP_DROP
+        pet.body.y = max(target, pet.body.y - CLIMB_SPEED * dt)
+        if pet.body.y > target:
+            return False
+        pet.emit(("claws", pet.body.x, self.top + CLIMB_TOP_DROP // 2, self.bottom))
+        return True
+
+
+class ClimbTop:
+    """Se hisse sur le bord et s'y assoit (de dos)."""
+    airborne = True
+
+    def __init__(self, segment):
+        self.segment = segment
+
+    def start(self, pet):
+        pet.body.y = self.segment.y
+        pet.play("climb_top")
+
+    def update(self, pet, dt):
+        pet.player.update(dt)
+        if not pet.player.finished:
+            return False
+        pet.body.support = self.segment
+        pet.body.owner_rect = next((w.rect for w in pet.snap.windows if w.id == self.segment.owner), None)
+        pet.shift(pet.player.animation.shift)
+        self.airborne = False
+        return True
+
+
 class Jump:
     def __init__(self, x, y):
         self.target = (x, y)
@@ -229,6 +285,8 @@ BEHAVIORS = {
     "walk": 30, "stand": 20, "sit": 14, "sit_back": 5, "wash": 8, "stretch": 5, "jump": 18, "doze": 3,
 }
 BEG_WEIGHT = 30
+MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1}
+CLIMB_WEIGHT = 10
 
 
 class Pet:
@@ -282,6 +340,25 @@ class Pet:
         if (self.body is not None and self.scene is None and self.mode == "script"
                 and not getattr(self.action, "airborne", False)):
             self._run(self._brain())
+
+    def stroke(self):
+        """Caresse (clic sans glisser) : le chat s'assoit et ronronne."""
+        if self.body is not None and self.mode == "script" and self.scene is None and self.body.grounded:
+            self._run(self._stroked())
+
+    def marks_on_screen(self, anim):
+        """Position écran des traces d'une animation (dernière image), avant le recalage de fin."""
+        frame = anim.frames[-1]
+        ax, ay = frame.anchor
+        cw = frame.rect[2]
+        out = []
+        for sheet_rect, (mx, my) in anim.marks:
+            if self.mirrored:
+                x = self.body.x - (cw - ax) + (cw - mx - sheet_rect[2])
+            else:
+                x = self.body.x - ax + mx
+            out.append(((anim.sheet, *sheet_rect), (round(x), round(self.body.y - ay + my))))
+        return out
 
     def head(self):
         return self.body.x, self.body.y - HEAD_HEIGHT
@@ -405,7 +482,7 @@ class Pet:
         while True:
             if self._requests:
                 self.scene = self._requests.pop(0)
-                yield from {"feed": self._do_feed, "drink": self._do_drink}[self.scene]()
+                yield from getattr(self, f"_do_{self.scene}")()
                 self.scene = None
                 continue
             if self._still:
@@ -419,11 +496,14 @@ class Pet:
                 yield from self._do_hunt(prey)
                 continue
             choices = dict(BEHAVIORS)
+            choices.update(MISCHIEF)
             if self.needs.hungry or self.needs.thirsty:
                 choices["beg"] = BEG_WEIGHT
             targets = self._jump_targets()
             if not targets:
                 choices.pop("jump")
+            if self._climb_target() is not None:
+                choices["climb"] = CLIMB_WEIGHT
             name = self.rng.choices(list(choices), weights=list(choices.values()))[0]
             if name == "jump":
                 yield from self._do_jump(targets)
@@ -470,6 +550,13 @@ class Pet:
         yield Hold("sit_front", 0, self.rng.uniform(10, 25))
         yield Play("sit_up")
 
+    def _stroked(self):
+        yield from self._face("right")
+        yield Play("sit_down")
+        yield Play("sit_front", duration=3.5, event="purr")
+        yield Play("sit_up")
+        yield from self._brain()
+
     def _do_beg(self):
         yield from self._face("right")
         yield Play("sit_down")
@@ -503,6 +590,86 @@ class Pet:
         yield Play("milk_spill")
         yield Play("milk_drink", event="lap")
         self.needs.drink()
+
+    def _do_prints(self):
+        yield from self._make_room(*PRINTS_ROOM)
+        yield from self._face("right")
+        yield Play("paw_prints")
+
+    def _do_fishbowl(self):
+        yield from self._make_room(*FISHBOWL_ROOM)
+        yield from self._face("right")
+        yield Play("sit_down")
+        yield Play("fishbowl")
+        yield Play("sit_up")
+
+    def _do_tv(self):
+        yield from self._make_room(*TV_ROOM)
+        yield from self._face("right")
+        yield Play("sit_back_down")
+        yield Play("tv_power")
+        yield Play("tv_on_air", duration=self.rng.uniform(*TV_TIME), event="purr")
+        yield Play("sit_back_tv", duration=2.0)
+        yield Play("tv_leave")
+
+    def _do_yarn(self):
+        yield from self._make_room(*YARN_ROOM)
+        yield from self._face("right")
+        yield Play("sit_down")
+        for name in ("yarn_roll_in", "yarn_play", "yarn_unroll", "yarn_follow", "yarn_bat_away"):
+            yield Play(name)
+
+    def _climb_target(self, anywhere=False):
+        """Bord de fenêtre au-dessus du chat, dont la face est devant lui (ou, si `anywhere`,
+        au-dessus de n'importe quel point de sa surface)."""
+        body = self.body
+        support = body.support
+        best = None
+        for s in self.segments:
+            if s.owner is None or s == support:
+                continue
+            if anywhere:
+                if support is None or s.x1 - EDGE_MARGIN <= support.x0 or s.x0 + EDGE_MARGIN >= support.x1:
+                    continue
+            elif not (s.x0 + EDGE_MARGIN <= body.x < s.x1 - EDGE_MARGIN):
+                continue
+            if body.y - s.y < max(CLIMB_MIN, CLIMB_TOP_DROP + CLIMB_LIFT) or body.y - s.y <= 0:
+                continue
+            if best is None or s.y > best.y:
+                best = s
+        return best
+
+    def _do_climb(self):
+        target = self._climb_target()
+        if target is None:
+            far = self._climb_target(anywhere=True)
+            if far is None:
+                return
+            seg = self.body.support
+            lo = max(far.x0, seg.x0) + EDGE_MARGIN
+            hi = min(far.x1, seg.x1) - EDGE_MARGIN
+            x = min(max(self.body.x, lo), hi)
+            yield from self._face("right" if x > self.body.x else "left")
+            yield WalkTo(x, idle=False)
+            target = self._climb_target()
+            if target is None:
+                return
+        yield from self._face("right")
+        yield Play("climb_leap")
+        target = self._climb_target_at(target)
+        if target is None:
+            return
+        yield Climb(target.y)
+        yield ClimbTop(target)
+        yield Play("sit_back", duration=self.rng.uniform(3, 6), idle=True)
+        yield Play("sit_back_up")
+
+    def _climb_target_at(self, segment):
+        """Le bord visé existe-t-il encore au-dessus du chat (fenêtre fermée ou déplacée entre-temps) ?"""
+        for s in self.segments:
+            if s.owner == segment.owner and s.x0 <= self.body.x < s.x1 and s.y < self.body.y:
+                return s
+        return None
 
     def _do_watch(self):
         yield from self._face("right")
