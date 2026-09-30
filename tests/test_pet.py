@@ -133,3 +133,19 @@ def test_fullscreen_on_another_monitor_does_not_hide_the_cat():
     assert not pet.update(DT, snap).hidden
     pet.body.x = 2500  # sur l'écran de droite, sous la vidéo
     assert pet.update(DT, snap).hidden
+
+
+def test_brain_picks_activities_through_the_temperament():
+    pet = new_pet(3)
+    picks = []
+    original = pet.temper.pick
+
+    def spy(base):
+        name = original(base)
+        picks.append(name)
+        return name
+
+    pet.temper.pick = spy
+    run(pet, world(), 240)
+    assert len(picks) >= 10
+    assert not any(a == b == c for a, b, c in zip(picks, picks[1:], picks[2:]))

@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass
 
 from felix.core.anim import Frame, Player
+from felix.core.mood import Temperament
 from felix.core.needs import Needs
 from felix.core.physics import GRAVITY, Body, step
 from felix.core.surfaces import compute_surfaces, support_at
@@ -320,6 +321,7 @@ class Pet:
         self.k = scale  # taille du chat : les distances liées à son corps suivent
         self.rng = rng or random.Random()
         self.needs = needs if needs is not None else Needs()
+        self.temper = Temperament(self.rng)
         self._events = []
         self._requests = []
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
@@ -471,6 +473,7 @@ class Pet:
         if self.body is None:
             self._spawn()
         self.needs.tick(dt)
+        self.temper.tick(dt)
         hidden = self._under_fullscreen(snap)
         if not hidden:
             self._update(dt)
@@ -560,18 +563,19 @@ class Pet:
                 continue
             prey = self._prey()
             if prey is not None and self.rng.random() < HUNT_CHANCE:
+                self.temper.did("hunt")
                 yield from self._do_hunt(prey)
                 continue
             choices = dict(BEHAVIORS)
             choices.update(MISCHIEF)
             if self.needs.hungry or self.needs.thirsty:
-                choices["beg"] = BEG_WEIGHT
+                choices["beg"] = BEG_WEIGHT * (1 + 2 * max(self.needs.hunger, self.needs.thirst))
             targets = self._jump_targets()
             if not targets:
                 choices.pop("jump")
             if self._climb_target() is not None:
                 choices["climb"] = CLIMB_WEIGHT
-            name = self.rng.choices(list(choices), weights=list(choices.values()))[0]
+            name = self.temper.pick(choices)
             if name == "jump":
                 yield from self._do_jump(targets)
             else:
