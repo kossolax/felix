@@ -116,12 +116,20 @@ class FelixApp(QObject):
         scale = 2 if big else 1
         if self.bank_loader is None or scale == self.bank.scale:
             return
-        self.bank = self.bank_loader(scale)
-        self.props.bank = self.bank
-        self.window.set_bank(self.bank)
-        self.toybox.set_bank(self.bank)
-        self.ball_window.set_bank(self.bank)
-        self.pet.set_animations(self.bank.animations, scale)
+        self._use_bank(self.bank_loader(scale))
+
+    def reload_sprites(self):
+        """Relit les planches (ex. les extensions viennent d'être extraites)."""
+        if self.bank_loader is not None:
+            self._use_bank(self.bank_loader(self.bank.scale))
+
+    def _use_bank(self, bank):
+        self.bank = bank
+        self.props.bank = bank
+        self.window.set_bank(bank)
+        self.toybox.set_bank(bank)
+        self.ball_window.set_bank(bank)
+        self.pet.set_animations(bank.animations, bank.scale)
 
     def set_toybox(self, visible):
         self._toybox_on = visible

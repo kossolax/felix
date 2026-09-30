@@ -8,7 +8,7 @@ from PySide6.QtGui import QBitmap, QImage, QPixmap, QRegion, QTransform
 from PySide6.QtGui import QPainter
 
 from felix.core.anim import frame_bounds
-from felix.core.manifest import load_manifest
+from felix.core.manifest import load_manifest, merge_manifests
 
 
 def _argb(img):
@@ -50,16 +50,26 @@ def opaque_bbox(img, rect):
 
 
 class SpriteBank:
-    def __init__(self, sheets, animations, scale=1):
+    def __init__(self, sheets, animations, scale=1, extensions=()):
         self.sheets = sheets  # {id: QImage}, déjà agrandies
         self.animations = animations
         self.scale = scale
+        self.extensions = extensions  # extensions chargées (fun, feeding…)
         self._pixmaps = {}
         self._masks = {}
 
     @classmethod
     def load(cls, manifest_path, images_dir, scale=1):
-        data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+        """Le jeu, plus chaque extension (extensions/*.json à côté du manifeste) dont les planches
+        ont été extraites."""
+        manifest_path, images_dir = Path(manifest_path), Path(images_dir)
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        extras = {}
+        for path in sorted((manifest_path.parent / "extensions").glob("*.json")):
+            extra = json.loads(path.read_text(encoding="utf-8"))
+            if all((images_dir / f"fig_{key}.png").exists() for key in extra.get("sheets", {})):
+                extras[path.stem] = extra
+        data = merge_manifests(data, extras.values())
         sheets = {}
         for key in data.get("sheets", {}):
             img = QImage(str(Path(images_dir) / f"fig_{key}.png"))
@@ -70,7 +80,7 @@ class SpriteBank:
             sheets[int(key)] = _erase(_argb(img), data.get("erase", {}).get(key, ()), scale)
         sizes = {sid: (img.width(), img.height()) for sid, img in sheets.items()}
         anims = load_manifest(data, sizes, lambda sid, rect: opaque_bbox(sheets[sid], rect), scale=scale)
-        return cls(sheets, anims, scale)
+        return cls(sheets, anims, scale, tuple(extras))
 
     def image(self, frame, mirrored=False):
         """Image de la cellule, avec ses couches éventuelles dessous et dessus (voir frame_bounds)."""

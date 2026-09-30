@@ -111,3 +111,20 @@ def test_manifest_can_erase_part_of_a_sheet(qapp, tmp_path, scale):
     assert img.pixelColor(18 * scale - 1, 10 * scale - 1).alpha() == 0
     assert img.pixelColor(12 * scale, 2 * scale).alpha() == 255
     assert img.pixelColor(13 * scale, 2 * scale - 1).alpha() == 255
+
+
+def test_extensions_are_loaded_only_once_their_sheets_are_extracted(qapp, tmp_path):
+    import json
+    img = QImage(10, 10, QImage.Format.Format_ARGB32)
+    img.fill(QColor(255, 255, 255, 255))
+    img.save(str(tmp_path / "fig_1.png"))
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps({"sheets": {"1": [1, 1]}, "animations": {"cat": {"sheet": 1, "frames": "0"}}}))
+    (tmp_path / "extensions").mkdir()
+    (tmp_path / "extensions" / "fun.json").write_text(json.dumps(
+        {"sheets": {"500": [1, 1]}, "animations": {"mouse": {"sheet": 500, "frames": "0"}}}))
+    bank = SpriteBank.load(manifest, tmp_path)
+    assert "mouse" not in bank.animations and bank.extensions == ()
+    img.save(str(tmp_path / "fig_500.png"))
+    bank = SpriteBank.load(manifest, tmp_path)
+    assert "mouse" in bank.animations and bank.extensions == ("fun",)

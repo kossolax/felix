@@ -7,7 +7,7 @@
 import os
 import sys
 
-datas = [("sprites/felix.json", "sprites"), ("assets/sounds", "assets/sounds"), ("assets/icon", "assets/icon")]
+datas = [("sprites", "sprites"), ("assets/sounds", "assets/sounds"), ("assets/icon", "assets/icon")]
 if os.environ.get("FELIX_BUNDLE_SPRITES") == "1":
     datas.append(("assets/original", "assets/original"))
 

@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 
 import pytest
@@ -23,7 +24,7 @@ def bank(qapp):
 def make_app(bank, tmp_path):
     from felix.app import FelixApp
     settings = QSettings(str(tmp_path / "felix.ini"), QSettings.Format.IniFormat)
-    return FelixApp(bank, FakeBackend(SNAP), settings=settings)
+    return FelixApp(bank, FakeBackend(SNAP), settings=settings, rng=random.Random(0))  # hasard reproductible
 
 
 def action(app, label):
@@ -331,3 +332,18 @@ def test_the_box_comes_back_when_its_monitor_is_plugged_again(bank, tmp_path):
     app.backend.set(two_screens())  # rebranché
     app.tick(1 / 30)
     assert app.toybox.center_x == 3000
+
+
+def test_sprites_are_reloaded_when_extensions_arrive(bank, tmp_path):
+    from felix.app import FelixApp
+    calls = []
+
+    def loader(scale):
+        calls.append(scale)
+        return bank
+
+    settings = QSettings(str(tmp_path / "felix.ini"), QSettings.Format.IniFormat)
+    app = FelixApp(bank, FakeBackend(SNAP), settings=settings, bank_loader=loader)
+    app.tick(1 / 30)
+    app.reload_sprites()
+    assert calls == [1] and app.bank is bank and app.pet.anims is bank.animations

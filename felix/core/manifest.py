@@ -26,6 +26,19 @@ def parse_frames(spec):
     return out
 
 
+def merge_manifests(base, extras):
+    """Le manifeste du jeu complété par ceux des extensions (sprites/extensions/*.json)."""
+    merged = {key: dict(base.get(key, {})) for key in ("sheets", "erase", "animations")}
+    merged.update({k: v for k, v in base.items() if k not in merged})
+    for extra in extras:
+        for key in ("sheets", "erase", "animations"):
+            clash = set(merged[key]) & set(extra.get(key, {}))
+            if clash:
+                raise ValueError(f"déjà défini par le jeu : {', '.join(sorted(clash))}")
+            merged[key].update(extra.get(key, {}))
+    return merged
+
+
 def _grids(data, sheet_sizes):
     grids = {}
     for key, (cols, rows) in data.get("sheets", {}).items():

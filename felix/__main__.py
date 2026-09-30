@@ -36,7 +36,8 @@ def ensure_sprites(interactive):
         box = QMessageBox(QMessageBox.Icon.Question, "Felix",
                           "Les graphismes d'origine de Felix ne sont pas encore installés.\n\n"
                           "Felix peut télécharger l'exécutable d'origine (felix2.exe, 758 Ko) depuis archive.org "
-                          "ou la copie du projet sur GitHub, ou utiliser un felix2.exe que vous avez déjà.\n\n"
+                          "ou la copie du projet sur GitHub, ou utiliser un felix2.exe que vous avez déjà. "
+                          "Ses 5 extensions de 2001 (jouets, repas, chaton, bêtises) suivront toutes seules.\n\n"
                           f"Les images seront extraites dans {target}.")
         fetch = box.addButton("Télécharger", QMessageBox.ButtonRole.AcceptRole)
         pick = box.addButton("Choisir felix2.exe…", QMessageBox.ButtonRole.ActionRole)
@@ -63,6 +64,30 @@ def ensure_sprites(interactive):
         except (OSError, ValueError) as exc:
             logging.getLogger("felix").warning("graphismes : %s", exc)
             QMessageBox.warning(None, "Felix", f"Échec :\n{exc}\n\nEssayez un autre moyen.")
+
+
+def fetch_extensions(felix, sprites):
+    """Extensions de 2001-2002 (jouets, repas, chaton, bêtises) pas encore là : récupérées en
+    arrière-plan, puis le chat les découvre sans redémarrer."""
+    from felix.paths import user_data_dir
+    from felix.resources.modules import install_modules, missing_modules
+    missing = missing_modules(sprites)
+    if not missing:
+        return
+    from felix.extensions import ExtensionFetcher
+    log = logging.getLogger("felix")
+
+    def done(installed, errors):
+        for error in errors:
+            log.warning("extensions : %s", error)
+        if installed:
+            log.info("extensions installées : %s", ", ".join(installed))
+            felix.reload_sprites()
+
+    fetcher = ExtensionFetcher(lambda: install_modules(sprites, user_data_dir() / "cache" / "modules", missing))
+    fetcher.finished.connect(done)
+    felix.extension_fetcher = fetcher  # gardé en vie jusqu'au bout
+    fetcher.start()
 
 
 def create_backend(name, session):
@@ -197,6 +222,7 @@ def main(argv=None):
         code = selftest(felix)
         backend.stop()
         return code
+    fetch_extensions(felix, sprites)
     for scene in filter(None, args.demo.split(",")):
         felix.pet.request(scene)
     felix.start()

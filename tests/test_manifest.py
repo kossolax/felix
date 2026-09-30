@@ -154,3 +154,26 @@ def test_compose_can_follow_the_base_length_and_shift_at_the_end():
     a = load_manifest(data, {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
     assert len(a.frames) == 2  # la durée du chat, la télé suit
     assert a.shift == (4, 0)  # sortie 9 − ancre 5
+
+
+def test_extensions_are_merged_into_the_manifest():
+    from felix.core.manifest import merge_manifests
+    base = {"sheets": {"1": [2, 1]}, "erase": {"1": [[0, 0, 1, 1]]},
+            "animations": {"cat": {"sheet": 1, "frames": "0-1"}}}
+    fun = {"sheets": {"500": [1, 1]},
+           "animations": {"mouse": {"sheet": 500, "frames": "0"},
+                          "play": {"compose": {"base": "cat", "over": "mouse"}}}}
+    merged = merge_manifests(base, [fun])
+    assert set(merged["sheets"]) == {"1", "500"} and merged["erase"] == base["erase"]
+    assert set(merged["animations"]) == {"cat", "mouse", "play"}
+    assert set(base["animations"]) == {"cat"}  # la base n'est pas modifiée
+    anims = load_manifest(merged, {1: (20, 10), 500: (5, 5)}, bbox_all)
+    assert anims["play"].frames[0].over[0][0] == 500
+
+
+def test_an_extension_cannot_redefine_what_exists():
+    import pytest
+    from felix.core.manifest import merge_manifests
+    base = {"sheets": {"1": [2, 1]}, "animations": {"cat": {"sheet": 1, "frames": "0-1"}}}
+    with pytest.raises(ValueError, match="cat"):
+        merge_manifests(base, [{"animations": {"cat": {"sheet": 1, "frames": "0"}}}])
