@@ -142,3 +142,31 @@ def test_a_window_moved_during_the_climb_is_followed():
         s = pet.body.support
         landed |= s is not None and s.owner == 9 and pet.body.y == 400 and view.animation.startswith("sit_back")
     assert landed
+
+
+def test_the_cat_goes_out_through_its_flap_and_comes_back():
+    snap = world()
+    pet = settled_pet(snap)
+    pet.request("outing")
+    views = []
+    for _ in range(int(400 / DT)):
+        views.append(pet.update(DT, snap))
+    names = [v.animation for v in views]
+    first_exit = names.index("exit_flap")
+    back = names.index("enter_flap", first_exit)
+    hidden = [v.hidden for v in views[first_exit:back]]
+    assert sum(hidden) * DT > 30  # absent un bon moment
+    assert not views[-1].hidden or pet.away
+
+
+def test_a_request_brings_the_cat_back_early():
+    snap = world()
+    pet = settled_pet(snap)
+    pet.request("outing")
+    for _ in range(int(10 / DT)):
+        if pet.update(DT, snap).hidden:
+            break
+    assert pet.away
+    pet.request("feed")
+    names, _ = run(pet, snap, 6)
+    assert "enter_flap" in names and "cupboard_enter" in names

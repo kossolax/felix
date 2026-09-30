@@ -46,6 +46,8 @@ CLIMB_SPEED = 70.0  # px/s
 CLIMB_LIFT = 24  # le chat quitte le sol en se dressant contre la vitre
 CLIMB_TOP_DROP = 69  # pieds du chat accroché, sous le bord, au début de climb_top
 CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
+AWAY_TIME = (60, 300)  # s dehors, après une sortie par la chatière
+OUTING_ROOM = (30, 110)
 
 
 @dataclass
@@ -205,6 +207,33 @@ def _window_under(pet, owner):
     return win
 
 
+class Away:
+    """Le chat est sorti par sa chatière : invisible pendant `duration`, ou jusqu'à ce qu'on le demande.
+
+    Au retour, il réapparaît sur le sol de l'écran où il était."""
+    airborne = True  # pas de physique pendant l'absence
+
+    def __init__(self, duration):
+        self.duration = duration
+
+    def start(self, pet):
+        self.elapsed = 0.0
+        pet.away = True
+
+    def update(self, pet, dt):
+        self.elapsed += dt
+        if self.elapsed < self.duration and not pet._requests:
+            return False
+        pet.away = False
+        floors = [s for s in pet.segments if s.owner is None]
+        floor = min(floors, key=lambda s: 0 if s.x0 <= pet.body.x < s.x1 else min(abs(s.x0 - pet.body.x),
+                                                                                   abs(s.x1 - pet.body.x)))
+        margin = OUTING_ROOM[1] * pet.k
+        x = min(max(pet.body.x, floor.x0 + margin), max(floor.x0 + margin, floor.x1 - margin))
+        pet.body.x, pet.body.y, pet.body.support, pet.body.owner_rect = x, floor.y, floor, None
+        return True
+
+
 class Climb:
     """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord).
 
@@ -311,7 +340,7 @@ BEHAVIORS = {
     "walk": 30, "stand": 20, "sit": 14, "sit_back": 5, "wash": 8, "stretch": 5, "jump": 18, "doze": 3,
 }
 BEG_WEIGHT = 30
-MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1}
+MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
@@ -326,6 +355,7 @@ class Pet:
         self._requests = []
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.gone = False  # sorti par la chatière (on peut fermer l'appli)
+        self.away = False  # parti se promener dehors (invisible)
         self.body = None
         self.facing = "right"
         self.mode = "script"
@@ -474,8 +504,10 @@ class Pet:
             self._spawn()
         self.needs.tick(dt)
         self.temper.tick(dt)
-        hidden = self._under_fullscreen(snap)
-        if not hidden:
+        hidden = self.away or self._under_fullscreen(snap)
+        if self.away:
+            self._advance(dt)  # le temps passe dehors aussi
+        elif not hidden:
             self._update(dt)
         events, self._events = tuple(self._events), []
         return View(self.player.animation.name, self.player.frame, self.body.x, self.body.y,
@@ -628,6 +660,13 @@ class Pet:
         yield Play("sit_front", duration=3.5, event="purr")
         yield Play("sit_up")
         yield from self._brain()
+
+    def _do_outing(self):
+        yield from self._make_room(*OUTING_ROOM)
+        yield from self._face("right")
+        yield Play("exit_flap")
+        yield Away(self.rng.uniform(*AWAY_TIME))
+        yield Play("enter_flap")
 
     def _do_beg(self):
         yield from self._face("right")
