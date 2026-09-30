@@ -4,9 +4,24 @@ Le chat de bureau de la fin des années 90 (*Felix II / Virtual Felix*, les Scre
 
 Il entre par sa chatière, se promène sur la barre des tâches ou le dock, saute et grimpe sur les fenêtres et les suit quand on les déplace. Il regarde la souris, la chasse et lui donne des coups de patte. On peut le nourrir, lui servir du lait ou le caresser pour qu'il ronronne. Il fait aussi des bêtises : traces de pattes sur l'écran, griffures, bocal à poisson rouge, télé, pelote de laine.
 
+## Téléchargement
+
+Les paquets sont sur la page [Releases](https://github.com/kossolax/felix/releases) :
+
+- **Ubuntu 24.04+** : `virtual-felix_X.Y.Z_amd64.deb`, à installer avec `sudo apt install ./virtual-felix_X.Y.Z_amd64.deb`. On lance ensuite « Virtual Felix » depuis le menu des applications. Sous Wayland, il faut aussi activer l'extension fournie : `gnome-extensions enable felix-helper@kossolax.github.io`, puis se reconnecter.
+- **Windows 10/11** : `virtual-felix-X.Y.Z-windows-x64.zip`. On le dézippe, puis on lance `felix\felix.exe`.
+
+Publier une version : `git tag vX.Y.Z && git push origin vX.Y.Z`. Le workflow `release` construit, teste et publie les deux paquets.
+
 ## Graphismes
 
-Le dépôt **ne contient aucun graphisme d'origine**. Au premier lancement, ou via le script d'installation, Felix télécharge [`felix2.exe`](https://archive.org/details/felix2_virtualfelix) depuis archive.org, vérifie son empreinte SHA-256 et en extrait localement les sprites et l'icône.
+Le dépôt et les paquets **ne contiennent aucun graphisme d'origine**. Au premier lancement, Felix propose trois moyens de récupérer `felix2.exe` :
+
+- le télécharger depuis [archive.org](https://archive.org/details/felix2_virtualfelix) ;
+- sinon, le télécharger depuis la copie de secours de la release [`original-felix2`](https://github.com/kossolax/felix/releases/tag/original-felix2) (téléchargement automatique seulement si le dépôt est public) ;
+- choisir un exemplaire déjà présent sur la machine.
+
+Il vérifie ensuite l'empreinte SHA-256 du fichier et en extrait localement les sprites.
 
 Ces graphismes appartiennent à leurs ayants droit (Nestlé Purina, AdTools, Ogilvy). Ils ne servent ici qu'à un usage personnel. Ne redistribuez ni les sprites extraits ni l'exécutable Windows qui les embarque.
 
@@ -31,11 +46,7 @@ Pour un lancement manuel : `venv/bin/python -m felix`.
 
 ### Windows 11
 
-La CI GitHub Actions produit à chaque push un artefact **felix-windows** : un dossier `felix/` avec `felix.exe`. Pour l'utiliser :
-
-1. Téléchargez l'artefact depuis l'onglet *Actions* du dépôt.
-2. Dézippez-le où vous voulez, puis lancez `felix.exe`.
-3. Pour qu'il démarre avec Windows, cochez « Lancer au démarrage » dans son menu.
+Prenez le zip de la dernière release, dézippez-le, puis lancez `felix\felix.exe`. Pour qu'il démarre avec Windows, cochez « Lancer au démarrage » dans son menu. La CI produit aussi un artefact **felix-windows** à chaque push.
 
 ## Utilisation
 
@@ -43,7 +54,7 @@ La CI GitHub Actions produit à chaque push un artefact **felix-windows** : un d
 |---|---|
 | clic gauche sur le chat | caresse : il s'assoit et ronronne |
 | glisser le chat | on l'attrape ; relâché en l'air, il tombe (et prend peur si c'est haut) |
-| clic droit sur le chat | menu : Nourrir, Donner du lait, Jouer avec la pelote, Regarder la télé, jauges faim/soif, Rester immobile, Sons, Grande taille (×2), Lancer au démarrage, À propos, Quitter |
+| clic droit sur le chat | menu : Nourrir, Donner du lait, Jouer avec la pelote, Regarder la télé, jauges faim/soif, Rester immobile, Sons, Grande taille (×2), Vitesse, Lancer au démarrage, À propos, Quitter (le chat sort par sa chatière) |
 
 Le même menu est disponible dans la zone de notification quand le bureau en a une.
 
@@ -86,6 +97,8 @@ Outils :
 - `tools/atlas_viewer.py` : lecture des animations et export des ancrages ;
 - `tools/align.py` : recalage automatique des planches enchaînées ;
 - `tools/make_sounds.py` : génération des sons ;
+- `tools/make_icon.py` : dessin de l'icône ;
+- `tools/build_deb.sh` : construction du paquet Debian ;
 - `tools/dev/gnome_x11_xvfb.sh` : GNOME X11 sur un écran virtuel ;
 - `tools/dev/gnome_wayland_headless.sh` : GNOME Wayland isolé, avec l'extension, pour tester sans quitter sa session ;
 - `tools/dev/wayland_screenshot.py` : capture d'écran de ce GNOME Wayland.

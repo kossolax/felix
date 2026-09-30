@@ -23,8 +23,12 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xinerama0 libxcb-xkb1 libfontconfig1
       - run: pip install -r requirements.txt
-      - name: Sprites d'origine (archive.org)
-        run: python tools/extract_felix.py
+      - name: Sprites d'origine (copie GitHub de felix2.exe, archive.org en secours)
+        run: |
+          gh release download original-felix2 -p felix2.exe -D assets/cache || true
+          python tools/extract_felix.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Tests
         run: python -m pytest -q
         env:
@@ -39,8 +43,13 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt pyinstaller
-      - name: Sprites d'origine (archive.org)
-        run: python tools/extract_felix.py
+      - name: Sprites d'origine (copie GitHub de felix2.exe, archive.org en secours)
+        shell: bash
+        run: |
+          gh release download original-felix2 -p felix2.exe -D assets/cache || true
+          python tools/extract_felix.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Tests
         run: python -m pytest -q
         env:
@@ -50,6 +59,7 @@ jobs:
       - name: Selftest de l'exe (backend Windows réel)
         shell: pwsh
         run: |
+          $env:FELIX_ASSETS = "$pwd\assets\original"
           $p = Start-Process -FilePath dist\felix\felix.exe -ArgumentList "--selftest" -Wait -PassThru
           Get-Content "$env:LOCALAPPDATA\felix\felix.log" -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }

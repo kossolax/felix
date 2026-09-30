@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QGuiApplication, QPainter
 from PySide6.QtWidgets import QWidget
 
 
@@ -64,7 +64,8 @@ class PetWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setWindowTitle("Felix")
         self.set_bank(bank)
-        self._use_mask = sys.platform != "win32"  # Windows : test de clic par pixel des fenêtres layered
+        # Windows : test de clic par pixel des fenêtres layered ; offscreen (tests) : pas de masques
+        self._use_mask = sys.platform != "win32" and QGuiApplication.platformName() not in ("offscreen", "minimal")
         self._key = None
         self._pixmap = None
         self._offset = (0, 0)
