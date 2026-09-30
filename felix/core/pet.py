@@ -9,7 +9,8 @@ import math
 import random
 
 from felix.core.anim import Player
-from felix.core.ball import BALL_RADIUS, Ball
+from felix.core.fun import FunScenes
+from felix.core.ball import YARN, Ball
 from felix.core.mood import Temperament
 from felix.core.needs import Needs
 from felix.core.physics import Body, step
@@ -22,7 +23,7 @@ from felix.core.tuning import (
     EDGE_MARGIN, JUMP_UP, JUMP_DOWN, JUMP_REACH, SCARED_FALL, HEAD_HEIGHT, ATTENTION, HUNT_LEVEL,
     HUNT_APPROACH, HUNT_CHANCE, HUNT_COOLDOWN, BORED_AFTER, PREY_FRESH, CURSOR_JITTER, FEED_ROOM, DRINK_ROOM,
     EAT_CYCLES, LAP_CYCLES, FISH_WATCH, FISH_NOSE, PRINTS_ROOM, FISHBOWL_ROOM, TV_ROOM, YARN_ROOM, TV_TIME,
-    CLIMB_LIFT, CLIMB_TOP_DROP, CLIMB_MIN, BALL_AT_FEET, BAKED_BALL, BAT_SPEED, AWAY_SPEED,
+    CLIMB_LIFT, CLIMB_TOP_DROP, CLIMB_MIN, BAKED_BALL, BALL_LAUNCH, BAT_SPEED, AWAY_SPEED,
     BAT_HOP, BALL_ROUNDS, PAT_ROUNDS, BALL_CATCH, POUNCE_RANGE, POUNCE_CHANCE, BAT_ROOM, LEAP_RUNUP,
     BALL_PATIENCE, REACH_TRIES, FINALE_ROOM, DANGLE_BALL, TOSS_HEIGHT, TOSS_SPEED, TOSS_WATCH, BOX_HOP_X,
     BOX_HOP_Y, BALL_OUT_WEIGHT, AWAY_TIME, EDGE_REACH, EDGE_WEIGHT, EDGE_JUMP_CHANCE, EDGE_MIN_DROP,
@@ -40,7 +41,7 @@ MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
-class Pet:
+class Pet(FunScenes):
     def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
         self.k = scale  # taille du chat : les distances liées à son corps suivent
@@ -158,8 +159,9 @@ class Pet:
         self.ball = None
 
     def _want_to_play(self):
-        if not self._still and self.scene != "yarn" and "yarn" not in self._requests:
-            self.request("yarn")
+        game = self.ball.kind.scene if self.ball is not None else "yarn"
+        if not self._still and self.scene != game and game not in self._requests:
+            self.request(game)
 
     def stroke(self):
         """Caresse (clic sans glisser) : le chat s'assoit et ronronne."""
@@ -262,8 +264,9 @@ class Pet:
             self.ball = None
             return None
         name = self.player.animation.name
-        drawn = name in BAKED_BALL or (name == "yarn_bat" and self.player.index == 0)
-        return BallView(ball.x, ball.y, ball.frame, not drawn and not self._fullscreen_at(snap, ball.x, ball.y - 1))
+        drawn = name in BAKED_BALL or (name in BALL_LAUNCH and self.player.index < BALL_LAUNCH[name][0])
+        visible = not drawn and not self._fullscreen_at(snap, ball.x, ball.y - 1)
+        return BallView(ball.x, ball.y, ball.frame, visible, ball.kind.anim)
 
     def _fullscreen_at(self, snap, x, y):
         """La fenêtre du dessus, sur l'écran de (x, y), est-elle en plein écran (vidéo, jeu…) ?"""
@@ -351,8 +354,10 @@ class Pet:
                 continue
             choices = dict(BEHAVIORS)
             choices.update(MISCHIEF)
+            if self.ball is not None and self.ball.kind is not YARN:
+                choices.pop("yarn")  # pas de pelote tant qu'un ballon traîne
             if self._ball_to_play_with():
-                choices["yarn"] = BALL_OUT_WEIGHT
+                choices[self.ball.kind.scene] = BALL_OUT_WEIGHT
             if self.needs.hungry or self.needs.thirsty:
                 choices["beg"] = BEG_WEIGHT * (1 + 2 * max(self.needs.hunger, self.needs.thirst))
             targets = self._jump_targets()
@@ -512,6 +517,8 @@ class Pet:
         """Partie de pelote. Elle arrive d'un bord de l'écran ou pend à sa ficelle (sauf si elle est
         déjà dehors) ; le chat la guette, la rattrape ou bondit dessus, la tapote et la renvoie d'un
         coup de patte, plusieurs fois ; au dernier tour, elle se déroule et s'en va (final d'origine)."""
+        if self.ball is not None and self.ball.kind is not YARN:
+            self.ball = None  # le ballon qui traînait laisse la place
         if self.ball is None:
             yield from self._ball_arrives()
         rounds = self.rng.randint(*BALL_ROUNDS)
@@ -535,13 +542,17 @@ class Pet:
             self.ball.kick(self.rng.uniform(150, 260) * self.k, 0)  # tirée d'un coup, elle file
             yield Play("leap_down")  # il retombe avec elle
             return
-        # lancée depuis le bord le plus éloigné de l'écran : elle rebondit vers le chat
+        yield from self._toss_in(YARN)
+
+    def _toss_in(self, kind):
+        """Une balle lancée depuis le bord le plus éloigné de l'écran rebondit vers le chat, qui
+        la regarde arriver."""
         mon = monitor_for(self.snap.monitors, self.body.x, self.body.y - 1).geometry
         from_right = mon.right - self.body.x >= self.body.x - mon.x
-        r = BALL_RADIUS * self.k
+        r = kind.radius * self.k
         speed = self.rng.uniform(*TOSS_SPEED) * self.k
         self.ball = Ball(mon.right - r if from_right else mon.x + r,
-                         max(mon.y + 3 * r, self.body.y - TOSS_HEIGHT * self.k), scale=self.k)
+                         max(mon.y + 3 * r, self.body.y - TOSS_HEIGHT * self.k), scale=self.k, kind=kind)
         self.ball.kick(-speed if from_right else speed, -150)
         yield from self._face("right" if from_right else "left")
         yield WatchBall(TOSS_WATCH, until="rest")
@@ -598,7 +609,7 @@ class Pet:
                     and self.rng.random() < POUNCE_CHANCE):
                 yield Play(f"stalk_{direction}")
                 if self.ball is ball and ball.resting and ball.support == self.body.support:
-                    yield Jump(ball.x - side * BALL_AT_FEET * self.k, seg.y, prep=f"leap_prep_{direction}")
+                    yield Jump(ball.x - side * ball.kind.at_feet * self.k, seg.y, prep=f"leap_prep_{direction}")
                 continue
             yield WalkTo(x, idle=False, gait="trot")
         return None
@@ -609,7 +620,7 @@ class Pet:
         fait le tour pour la renvoyer vers le plus grand espace libre."""
         m = EDGE_MARGIN * self.k
         near = 1 if self.ball.x >= self.body.x else -1
-        spots = [(self.ball.x - side * BALL_AT_FEET * self.k, side) for side in (near, -near)]
+        spots = [(self.ball.x - side * self.ball.kind.at_feet * self.k, side) for side in (near, -near)]
         spots = [(x, side) for x, side in spots if seg.x0 + m <= x <= seg.x1 - m]
         if not spots:
             return None
@@ -629,7 +640,7 @@ class Pet:
         m = EDGE_MARGIN * self.k
         near = 1 if self.ball.x >= self.body.x else -1
         for side in (near, -near):
-            x = self.ball.x - side * BALL_AT_FEET * self.k
+            x = self.ball.x - side * self.ball.kind.at_feet * self.k
             if s.x0 + m <= x <= s.x1 - m and abs(x - self.body.x) <= JUMP_REACH:
                 return x, s.y
         return None
@@ -641,8 +652,8 @@ class Pet:
         mirrored = side < 0
         yield from self._face("left" if mirrored else "right")
         ball.vx = 0.0  # rattrapée ; il se recale en s'asseyant pour l'avoir pile où les images la dessinent
-        yield Play("sit_down", mirrored=mirrored, slide=ball.x - side * BALL_AT_FEET * self.k - self.body.x)
-        spot = self.body.x + side * BALL_AT_FEET * self.k
+        yield Play("sit_down", mirrored=mirrored, slide=ball.x - side * ball.kind.at_feet * self.k - self.body.x)
+        spot = self.body.x + side * ball.kind.at_feet * self.k
         if self.ball is not ball or not ball.resting or abs(ball.x - spot) > 1:
             yield Play("sit_up", mirrored=mirrored)  # on la lui a prise
             return

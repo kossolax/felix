@@ -63,3 +63,14 @@ def test_a_ball_held_still_before_release_just_drops(bank):
     win.drag_to(600, 900, 0.05)
     win.release(1.0)
     assert calls[-1] == ("throw", 0, 0)
+
+
+@pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_504.png").exists(), reason="extension Fun absente")
+def test_the_window_shows_whichever_ball_is_out(bank):
+    win = make_window(bank, [])
+    win.show_view(BallView(500, 1000, 0))
+    small = win.pixmap.size()
+    win.show_view(BallView(500, 1000, 0, anim="beach_ball"))
+    anchor = bank.animations["beach_ball"].frames[0].anchor
+    assert win.pixmap.width() > 2 * small.width()
+    assert (win.x() + anchor[0], win.y() + anchor[1]) == (500, 1000)

@@ -130,3 +130,21 @@ def test_scale_makes_the_ball_roll_further():
     run(small, snap, 4)
     run(big, snap, 4)
     assert abs((big.x - 300) - 2 * (small.x - 300)) < 10
+
+
+def test_a_beach_ball_is_bigger_lighter_and_rolls_further():
+    from felix.core.ball import BEACH
+    snap = world()
+    yarn, beach = on_floor(500, snap), Ball(500, 1080, kind=BEACH)
+    run(beach, snap, DT)
+    yarn.kick(300, 0)
+    beach.kick(300, 0)
+    run(yarn, snap, 6)
+    run(beach, snap, 6)
+    assert beach.x - 500 > 2 * (yarn.x - 500)
+    wall = Ball(1800, 1080, kind=BEACH)
+    run(wall, snap, DT)
+    wall.kick(900, 0)
+    trace = []
+    run(wall, snap, 2, trace)
+    assert max(x for x, *_ in trace) <= 1920 - BEACH.radius  # il rebondit sur le bord de l'écran

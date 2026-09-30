@@ -1,9 +1,11 @@
-"""Pelote de laine libre : elle roule sur le sol et le haut des fenêtres, rebondit et tombe.
+"""Balle libre (pelote de laine, ballon de plage) : elle roule sur le sol et le haut des
+fenêtres, rebondit et tombe.
 
 Sa position (x, y) est son point de contact, comme les pieds du chat. Le bord d'un écran et
 une fenêtre placée devant l'arrêtent ; le vrai bord d'une fenêtre la laisse tomber.
 """
 import math
+from dataclasses import dataclass
 
 from felix.core.physics import GRAVITY, MAX_FALL_SPEED, follow_support
 from felix.core.surfaces import landing_between, support_at
@@ -19,13 +21,29 @@ FRAMES = 4
 MAX_THROW = 2500.0
 
 
+@dataclass(frozen=True)
+class BallKind:
+    anim: str  # images (une par quart de tour)
+    radius: int
+    roll_step: int  # px roulés par image
+    friction: float  # px/s² en roulant
+    bounce: float  # part de la vitesse gardée à chaque rebond au sol
+    at_feet: int  # px entre les pieds du chat assis et la balle que dessinent ses images
+    scene: str  # jeu du chat avec elle
+
+
+YARN = BallKind("yarn_ball", BALL_RADIUS, ROLL_STEP, BALL_FRICTION, BALL_BOUNCE, 38, "yarn")
+BEACH = BallKind("beach_ball", 32, 50, 60.0, 0.6, 56, "beachball")  # extension Fun and Games
+
+
 def _window_rect(snap, wid):
     win = next((w for w in snap.windows if w.id == wid), None)
     return win.rect if win else None
 
 
 class Ball:
-    def __init__(self, x, y, scale=1, home=None):
+    def __init__(self, x, y, scale=1, home=None, kind=YARN):
+        self.kind = kind
         self.x, self.y = float(x), float(y)
         self.vx = self.vy = 0.0
         self.support = None
@@ -39,7 +57,7 @@ class Ball:
 
     @property
     def frame(self):
-        return int(self.roll // (ROLL_STEP * self.k)) % FRAMES
+        return int(self.roll // (self.kind.roll_step * self.k)) % FRAMES
 
     @property
     def grounded(self):
@@ -82,7 +100,7 @@ class Ball:
         else:
             self._fly(dt, snap, segs)
         if self.exits and snap.monitors:
-            r = BALL_RADIUS * self.k
+            r = self.kind.radius * self.k
             left, top, right, bottom = _bounds(snap)
             self.gone = not (left - r <= self.x <= right + r and self.y <= bottom + 2 * r)
 
@@ -93,10 +111,10 @@ class Ball:
         self.x += dx
         self.roll += dx
         if not self.exits:
-            dv = BALL_FRICTION * self.k * dt
+            dv = self.kind.friction * self.k * dt
             self.vx = 0.0 if abs(self.vx) <= dv else self.vx - math.copysign(dv, self.vx)
         seg = self.support
-        r = BALL_RADIUS * self.k
+        r = self.kind.radius * self.k
         walls = not self.exits
         lo = seg.x0 + r if walls and self._wall(seg, -1, snap) else seg.x0
         hi = seg.x1 - r if walls and self._wall(seg, 1, snap) else seg.x1
@@ -128,7 +146,7 @@ class Ball:
         ny = self.y + self.vy * dt
         self.roll += self.vx * dt
         if not self.exits and snap.monitors:
-            r = BALL_RADIUS * self.k
+            r = self.kind.radius * self.k
             left, top, right, _bottom = _bounds(snap)
             if nx < left + r:
                 nx, self.vx = left + r, abs(self.vx) * WALL_BOUNCE
@@ -141,7 +159,7 @@ class Ball:
             if seg is not None:
                 self.x, self.y = nx, seg.y
                 if self.vy > BALL_MIN_BOUNCE:
-                    self.vy = -self.vy * BALL_BOUNCE
+                    self.vy = -self.vy * self.kind.bounce
                     self.vx *= AIR_SPIN_LOSS
                 else:
                     self.vy = 0.0

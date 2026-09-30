@@ -36,7 +36,13 @@ CLIMB_TOP_DROP = 69  # pieds du chat accroché, sous le bord, au début de climb
 CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
 BALL_AT_FEET = 38  # px entre les pieds du chat assis et la pelote que dessinent yarn_sniff / yarn_pat
 BAT_FROM = 44  # … et celle de la 2e image de yarn_bat, d'où la vraie pelote repart
-BAKED_BALL = frozenset({"yarn_sniff", "yarn_pat", "yarn_unroll", "yarn_follow", "yarn_bat_away"})  # pelote dessinée
+BAKED_BALL = frozenset({"yarn_sniff", "yarn_pat", "yarn_unroll", "yarn_follow", "yarn_bat_away",
+                        "beach_sit"})  # balle dessinée par les images du chat
+BEACH_LAUNCH = (5, 65)  # ballon : il quitte la patte à la 6e image de beach_pat, à 65 px des pieds
+BALL_LAUNCH = {"yarn_bat": (1, BAT_FROM), "beach_pat": BEACH_LAUNCH}  # (image, px des pieds)
+BEACH_ROUNDS = (2, 4)  # tapes avant de bondir dessus et de le crever
+BEACH_SPEED = (120, 260)  # px/s : un ballon léger, tapoté, qui roule loin
+BEACH_REST = (1.0, 3.0)  # s assis à côté, avant de le tapoter
 BAT_SPEED = (160, 460)  # px/s
 AWAY_SPEED = (380, 560)  # dernier coup de patte, quand la place manque pour le final d'origine
 BAT_HOP = (0, 380)  # px/s vers le haut

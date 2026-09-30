@@ -1,4 +1,4 @@
-"""Pelote de laine libre (planche 402) : suit la physique du cœur ; on peut l'attraper et la lancer."""
+"""Balle libre (pelote, ballon…) : suit la physique du cœur ; on peut l'attraper et la lancer."""
 import sys
 import time
 from collections import deque
@@ -31,7 +31,11 @@ class BallWindow(QWidget):
 
     def set_bank(self, bank):
         self.bank = bank
-        self._frames = bank.animations["yarn_ball"].frames
+        self._use("yarn_ball")
+
+    def _use(self, anim):
+        self._anim = anim
+        self._frames = self.bank.animations[anim].frames
         self._frame_index = None
         self._show_frame(0)
 
@@ -60,6 +64,8 @@ class BallWindow(QWidget):
         if view is None or not view.visible:
             self.hide()
             return
+        if view.anim != self._anim:
+            self._use(view.anim)
         self._show_frame(view.frame)
         self._place(view.x, view.y)
         if not self.isVisible():

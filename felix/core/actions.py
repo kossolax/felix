@@ -8,7 +8,7 @@ from felix.core.physics import GRAVITY, step
 from felix.core.surfaces import support_at
 from felix.core.tuning import (
     EDGE_MARGIN, JUMP_APEX, ATTENTION, PAW_RANGE, WATCH_PATIENCE, WATCH_MAX, BORED_AFTER, CLIMB_SPEED,
-    CLIMB_LIFT, CLIMB_TOP_DROP, BALL_AT_FEET, BAT_FROM, OUTING_ROOM,
+    CLIMB_LIFT, CLIMB_TOP_DROP, BALL_LAUNCH, OUTING_ROOM,
 )
 
 
@@ -18,6 +18,7 @@ class BallView:
     y: float
     frame: int
     visible: bool = True  # cachée quand les images du chat la dessinent elles-mêmes
+    anim: str = "yarn_ball"  # images de la balle (pelote, ballon…)
 
 
 @dataclass
@@ -377,7 +378,7 @@ class Chase:
         seg = pet.body.support
         if ball is None or ball.held or ball.resting or ball.support != seg:
             return True
-        target = ball.x - self.side * BALL_AT_FEET * pet.k
+        target = ball.x - self.side * ball.kind.at_feet * pet.k
         sign = 1 if self.direction == "right" else -1
         if (target - pet.body.x) * sign <= 0:
             return True
@@ -392,21 +393,22 @@ class Chase:
 
 
 class Bat(Play):
-    """Coup de patte assis : à la 2e image, la vraie pelote repart de sous la patte (la planche
-    ne la dessine plus à partir de là)."""
+    """Coup de patte assis : à partir de l'image `launch` de l'animation, la vraie balle repart
+    de sous la patte, à `offset` px des pieds (la planche ne la dessine plus à partir de là)."""
 
-    def __init__(self, side, speed, hop, away=False):
-        super().__init__("yarn_bat", mirrored=side < 0)
+    def __init__(self, side, speed, hop, away=False, name="yarn_bat"):
+        super().__init__(name, mirrored=side < 0)
         self.side, self.speed, self.hop, self.away = side, speed, hop, away
+        self.launch, self.offset = BALL_LAUNCH[name]
         self.kicked = False
 
     def update(self, pet, dt):
         done = super().update(pet, dt)
-        if not self.kicked and (pet.player.index >= 1 or done):
+        if not self.kicked and (pet.player.index >= self.launch or done):
             self.kicked = True
             ball = pet.ball
             if ball is not None and not ball.held:
-                ball.x, ball.y = pet.body.x + self.side * BAT_FROM * pet.k, pet.body.y
+                ball.x, ball.y = pet.body.x + self.side * self.offset * pet.k, pet.body.y
                 ball.support, ball.owner_rect = pet.body.support, pet.body.owner_rect
                 ball.exits = self.away  # renvoyée pour de bon : elle sort de l'écran
                 ball.kick(self.side * self.speed, -self.hop)

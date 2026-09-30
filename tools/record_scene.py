@@ -52,7 +52,6 @@ def main():
     if args.x is not None:
         pet.body.x = args.x
     pet.request(args.scene)
-    ball_frames = bank.animations["yarn_ball"].frames
     origin = None
     shots = []
     keep = tuple(filter(None, args.only.split(",")))
@@ -68,7 +67,7 @@ def main():
         wx, wy = ext.window_origin(view)
         ox, oy = ext.frame_offset(view.frame, view.mirrored)
         if view.ball is not None and view.ball.visible:
-            bf = ball_frames[view.ball.frame]
+            bf = bank.animations[view.ball.anim].frames[view.ball.frame]
             painter.drawPixmap(round(view.ball.x) - bf.anchor[0] - origin[0], round(view.ball.y) - bf.anchor[1] - origin[1],
                                bank.pixmap(bf))
         painter.drawPixmap(wx + ox - origin[0], wy + oy - origin[1], bank.pixmap(view.frame, view.mirrored))

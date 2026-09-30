@@ -280,6 +280,7 @@ class FelixApp(QObject):
             ("Jouer avec la pelote", lambda _=False: self.pet.request("yarn"), None),
             ("Regarder la télé", lambda _=False: self.pet.request("tv"), None),
             ("Regarder le poisson rouge", lambda _=False: self.pet.request("fishbowl"), None),
+            *self._extension_actions(),
             (status, None, None),
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
@@ -292,6 +293,13 @@ class FelixApp(QObject):
             None,
             ("Quitter", lambda _=False: self.request_quit(), None),
         ]
+
+    def _extension_actions(self):
+        """Jeux des extensions de Felix II installées."""
+        actions = []
+        if "fun" in self.bank.extensions:
+            actions.append(("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None))
+        return actions
 
     def _make_tray(self):
         walk = self.bank.animations["sit_front"].frames[0]

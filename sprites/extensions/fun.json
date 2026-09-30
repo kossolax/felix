@@ -1,0 +1,19 @@
+{
+  "source": "Felix II, extension « Fun and Games » (Module1.Felix, 2001) : ballon, souris mécanique, grenouille",
+  "sheets": {
+    "500": [3, 4], "501": [4, 5], "502": [2, 7], "503": [2, 5], "504": [4, 1], "506": [2, 4]
+  },
+  "erase": {
+    "500": [[382, 88, 92, 88], [66, 176, 92, 88], [224, 176, 92, 88]]
+  },
+  "animations": {
+    "beach_ball":       {"sheet": 504, "frames": [3, 2, 1, 0], "fps": 1, "anchor": [34, 68]},
+    "beach_sit":        {"sheet": 506, "frames": "0-6", "fps": 6, "loop": true, "anchor": [34, 86], "facing": "right"},
+    "beach_pat":        {"sheet": 500, "frames": "0-9", "fps": 8, "anchor": [35, 88], "facing": "right"},
+    "beach_pounce":     {"sheet": 501, "frames": "0-19", "fps": 10, "anchor": [45, 98], "facing": "right"},
+    "beach_flat":       {"sheet": 502, "frames": "0-6", "fps": 6, "loop": true, "anchor": [23, 62], "facing": "right"},
+    "beach_flat_look":  {"sheet": 502, "frames": "7-10", "fps": 4, "anchor": [23, 62], "facing": "right"},
+    "beach_flat_fade":  {"sheet": 502, "frames": "11-13", "fps": 6, "anchor": [23, 62], "facing": "right"},
+    "beach_getup":      {"sheet": 503, "frames": "0-9", "fps": 8, "anchor": [29, 81], "exit": [62, 81], "facing": "right"}
+  }
+}
