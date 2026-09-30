@@ -136,6 +136,17 @@ def test_the_cat_pounces_on_a_ball_lying_a_little_way_off():
     assert pounced >= 2
 
 
+def test_the_cat_does_not_pounce_on_a_ball_right_in_front_of_him():
+    snap = world()
+    for seed in range(8):
+        pet = settled_pet(snap, seed, x=800)
+        lay_ball(pet, snap, 950)  # un bond de 110 px : il resterait presque sur place, corps étiré
+        pet.request("yarn")
+        seen = names(run(pet, snap, 12, until=lambda p, v: v.animation == "sit_down"))
+        assert "leap_prep_right" not in seen, seed
+        assert abs(pet.body.x - (950 - BALL_AT_FEET)) <= BALL_CATCH
+
+
 def test_throwing_the_ball_makes_the_cat_run_after_it():
     snap = world()
     pet = settled_pet(snap, 3, x=400)
