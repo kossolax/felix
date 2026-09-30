@@ -173,3 +173,20 @@ def test_a_request_brings_the_cat_back_early():
     pet.request("feed")
     names, _ = run(pet, snap, 6)
     assert "enter_flap" in names and "cupboard_enter" in names
+
+
+def test_a_cat_that_is_out_cannot_be_grabbed():
+    snap = world()
+    pet = settled_pet(snap)
+    pet.request("outing")
+    for _ in range(int(10 / DT)):
+        if pet.update(DT, snap).hidden:
+            break
+    x, y = pet.body.x, pet.body.y
+    pet.grab(x, y)
+    pet.drag(x, y - 300)
+    pet.release()
+    assert pet.away and pet.mode != "falling" and (pet.body.x, pet.body.y) == (x, y)
+    pet.request("sit")
+    names, _ = run(pet, snap, 6)
+    assert "enter_flap" in names and pet.body.grounded

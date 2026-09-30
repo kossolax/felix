@@ -101,6 +101,10 @@ def selftest(felix):
     for _ in range(300):
         felix.tick(1 / 30)
     pet = felix.pet
+    if pet.away:  # sorti par sa chatière : on l'appelle avant de le prendre
+        pet.request("sit")
+        for _ in range(60):
+            felix.tick(1 / 30)
     pet.grab(pet.body.x, pet.body.y)
     pet.drag(pet.body.x, pet.body.y - 300)
     pet.release()

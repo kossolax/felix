@@ -18,3 +18,20 @@ def test_selftest_runs_the_whole_app_headless(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert "selftest ok" in out.stdout
+
+
+@pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_100.png").exists(), reason="sprites non extraits")
+def test_selftest_calls_back_a_cat_that_went_out(qapp, tmp_path):
+    from PySide6.QtCore import QSettings
+    from felix.__main__ import selftest
+    from felix.app import FelixApp
+    from felix.core.world import Monitor, Rect, WorldSnapshot
+    from felix.paths import MANIFEST
+    from felix.platform.fake import FakeBackend
+    from felix.render.sprites import SpriteBank
+    bank = SpriteBank.load(MANIFEST, ROOT / "assets" / "original")
+    snap = WorldSnapshot(monitors=(Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080)),))
+    settings = QSettings(str(tmp_path / "felix.ini"), QSettings.Format.IniFormat)
+    felix = FelixApp(bank, FakeBackend(snap), settings=settings)
+    felix.pet.request("outing")  # il sera dehors quand le selftest voudra le prendre
+    assert selftest(felix) == 0

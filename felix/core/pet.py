@@ -656,6 +656,8 @@ class Pet:
             self._run(self._brain())
 
     def grab(self, px, py):
+        if self.away or self.body is None:
+            return  # dehors (invisible) : rien à attraper
         self.scene = None
         self.mode = "held"
         self._pointer = (px, py)
@@ -666,11 +668,14 @@ class Pet:
         self.play(f"held_{self.facing}")
 
     def drag(self, px, py):
+        if self.mode != "held":
+            return
         self._pointer = (px, py)
         self.body.x, self.body.y = px + self._grab_offset[0], py + self._grab_offset[1]
 
     def release(self):
-        self._start_fall()
+        if self.mode == "held":
+            self._start_fall()
 
     # -- boucle --
     def _track_cursor(self, dt, cursor):
