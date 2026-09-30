@@ -271,6 +271,7 @@ class FelixApp(QObject):
             ("Donner du lait", lambda _=False: self.pet.request("drink"), None),
             ("Jouer avec la pelote", lambda _=False: self.pet.request("yarn"), None),
             ("Regarder la télé", lambda _=False: self.pet.request("tv"), None),
+            ("Regarder le poisson rouge", lambda _=False: self.pet.request("fishbowl"), None),
             (status, None, None),
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),

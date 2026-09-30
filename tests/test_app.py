@@ -103,6 +103,13 @@ def test_menu_offers_yarn_and_tv(bank, tmp_path):
     assert app.pet.scene == "yarn" and app.pet._requests == ["tv"]
 
 
+def test_menu_offers_the_goldfish(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    app.tick(1 / 30)
+    action(app, "Regarder le poisson rouge")[1](False)
+    assert app.pet.scene == "fishbowl"
+
+
 def test_prop_events_reach_the_prop_manager(bank, tmp_path):
     app = make_app(bank, tmp_path)
     app.dispatch(("claws", 300.0, 500, 700))
