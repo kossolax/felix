@@ -8,9 +8,9 @@ MANIFEST = Path(__file__).resolve().parent.parent / "sprites" / "felix.json"
 CELL = (50, 40)
 
 
-def make_anims():
+def make_anims(scale=1):
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     extras = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((MANIFEST.parent / "extensions").glob("*.json"))]
     data = merge_manifests(data, extras)
-    sizes = {int(k): (cols * CELL[0], rows * CELL[1]) for k, (cols, rows) in data["sheets"].items()}
-    return load_manifest(data, sizes, lambda sheet, rect: (0, 0, rect[2], rect[3]))
+    sizes = {int(k): (cols * CELL[0] * scale, rows * CELL[1] * scale) for k, (cols, rows) in data["sheets"].items()}
+    return load_manifest(data, sizes, lambda sheet, rect: (0, 0, rect[2], rect[3]), scale=scale)

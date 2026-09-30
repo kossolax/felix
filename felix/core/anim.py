@@ -32,6 +32,7 @@ class Animation:
     dx: float = 0  # déplacement horizontal par image
     facing: str = "front"
     shift: tuple = (0, 0)  # déplacement de la position une fois l'animation finie
+    enter: tuple = (0, 0)  # … et avant de la jouer (sa 1re image dessine le corps ailleurs que ses pieds)
     marks: tuple = ()  # ((rect dans la planche), (x, y) dans la cellule) : traces laissées à la fin
 
 

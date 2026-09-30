@@ -99,6 +99,17 @@ class Play:
         return False
 
 
+class Await(Play):
+    """Joue une animation en boucle, sans la relancer, jusqu'à ce que `done()` soit vrai (ou `limit` s)."""
+
+    def __init__(self, name, done, limit):
+        super().__init__(name, duration=limit)
+        self.done = done
+
+    def update(self, pet, dt):
+        return self.done() or super().update(pet, dt)
+
+
 class Hold(Play):
     """Reste figé sur une image d'une animation."""
 

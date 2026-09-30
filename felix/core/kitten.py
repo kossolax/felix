@@ -12,6 +12,8 @@ from felix.core.physics import step
 from felix.core.tuning import EDGE_MARGIN, KITTEN_FOLLOW, KITTEN_NEAR, KITTEN_TROT
 
 LIFT = 2  # px : à côté de Felix assis, ses images dessinent le chaton un peu plus haut
+LYING = ("kitten_crouch", "kitten_lie", "kitten_land_crouch")  # poses couchées : il se relève avant de repartir
+SITTING = {"kitten_sit", "kitten_sit_tail", "kitten_sit_still", "kitten_sit_from_appear"}
 
 
 class KPlay:
@@ -24,6 +26,7 @@ class KPlay:
         if not self.keep_lift:
             kitten.lift = 0  # changement de pose : il retrouve le sol
         kitten.play(self.name)
+        kitten.shift(kitten.player.animation.enter[0])
         self.elapsed = 0.0
         self.frames = 0
 
@@ -54,14 +57,24 @@ class KWalk:
         kitten.play(f"kitten_{gait}_{'right' if self.sign > 0 else 'left'}")
 
     def update(self, kitten, dt):
+        if kitten.leaving:
+            return True  # on l'a caché : il s'arrête pour s'effacer
         steps = kitten.player.update(dt)
         if not steps:
             return False
-        x = kitten.x + kitten.player.animation.dx * kitten.k * steps
+        x = kitten.x + kitten.player.animation.dx * steps  # dx est déjà à l'échelle
         reached = (x - self.target) * self.sign >= 0
+        if reached:
+            x = self.target
         lo, hi = kitten.bounds()
-        kitten.x = min(max(self.target if reached else x, lo), hi)
-        return reached or kitten.x in (lo, hi)
+        if self.sign > 0:  # bornée devant lui seulement : jamais ramené en arrière d'un coup
+            x = min(x, max(hi, kitten.x))
+            stop = x >= hi
+        else:
+            x = max(x, min(lo, kitten.x))
+            stop = x <= lo
+        kitten.x = x
+        return reached or stop
 
 
 class Kitten:
@@ -103,8 +116,16 @@ class Kitten:
         return seg.x0 + m, seg.x1 - m
 
     def shift(self, dx):
-        lo, hi = self.bounds()
-        self.x = min(max(self.x + dx, lo), hi)
+        """Les pieds rejoignent le chaton dessiné, sans quitter sa surface."""
+        seg = self.support
+        self.x = self.x + dx if seg is None else min(max(self.x + dx, seg.x0), seg.x1 - 1)
+
+    def set_animations(self, anims, scale):
+        """Changement de taille à chaud."""
+        index = self.player.index
+        self.anims, self.k = anims, scale
+        self.player = Player(anims[self.player.animation.name])
+        self.player.index = min(index, len(self.player.animation.frames) - 1)
 
     def run(self, script):
         self.script = script
@@ -115,6 +136,7 @@ class Kitten:
         self.x, self.y = float(x), float(y)
         if support is not None:
             self.support = support
+        self.owner_rect = None  # la fenêtre a pu bouger pendant la scène : on repart de là où elle est
         self.lift, self.visible, self.puppet = lift, True, False
         self.goal, self.ready = None, False
         self.run(self._then(anims))
@@ -124,9 +146,17 @@ class Kitten:
         self.visible, self.puppet = False, True
         self.goal, self.ready = None, False
 
+    def free(self):
+        """La scène à deux est abandonnée (Felix attrapé, tombé…) : il reprend sa vie là où il est."""
+        self.goal, self.ready = None, False
+        if self.puppet:
+            self.visible, self.puppet, self.lift = True, False, 0
+            self.run(self._then([f"kitten_stand_{self._side()}"]))
+
     # -- souris --
     def grab(self):
         self.held, self.falling = True, False
+        self.goal, self.ready = None, False
         self.support = self.owner_rect = None
         self.vx = self.vy = 0.0
         self.lift = 0
@@ -185,10 +215,15 @@ class Kitten:
         return pet if pet.body.support == self.support else None
 
     def _brain(self):
+        """Le cerveau d'origine (0x649) : debout un moment entre deux actions (2,3 s tourné à
+        droite, 1 s à gauche), puis il regarde, cligne des yeux ou se couche, à parts égales."""
         while True:
             if self.leaving:
                 yield from self._fade_out()
                 return
+            if self.player.animation.name.startswith(LYING):
+                yield KPlay(f"kitten_getup_{self._side()}")  # couché : il se relève d'abord
+                continue
             if self.goal is not None:
                 yield from self._to_goal()
                 continue
@@ -197,14 +232,16 @@ class Kitten:
                 yield from self._follow(felix)
                 continue
             side = self._side()
+            yield KPlay(f"kitten_stand_{side}", duration=2.3 if side == "right" else 1.0)
+            if self.leaving or self.goal is not None:
+                continue
             r = self.rng.random()
-            if r < 0.45:
-                yield from self._lie()
-            elif r < 0.65:
+            if r < 0.3:
                 yield KPlay(f"kitten_look_{side}")
-            elif r < 0.9:
-                yield KPlay(f"kitten_stand_{side}", duration=self.rng.uniform(1.0, 2.3))
+            elif r < 0.6:
                 yield KPlay(f"kitten_blink_{side}")
+            elif r < 0.9:
+                yield from self._lie()
             else:
                 yield from self._sit()
 
@@ -226,8 +263,11 @@ class Kitten:
         yield KPlay(f"kitten_getup_{side}")
 
     def _sit(self):
+        yield from self._turn("right")  # ses images assises le montrent tourné à droite
         yield KPlay("kitten_sit")
         for _ in range(self.rng.randint(2, 5)):
+            if self.leaving or self.goal is not None:
+                break
             yield KPlay("kitten_sit_tail")
         yield KPlay("kitten_sit_up")
 
@@ -247,18 +287,23 @@ class Kitten:
         self.x = self.goal[0]
         hold = f"kitten_stand_{direction}"
         if pose == "lie":
-            self.lift = LIFT
+            self.lift = LIFT * self.k
             yield KPlay(f"kitten_lie_{direction}", keep_lift=True)
             yield KPlay(f"kitten_crouch_tail_{direction}", keep_lift=True)
             hold = "kitten_crouch_tail_end"
-        self.ready = True
-        while self.goal is not None:
+        self.ready = self.goal is not None
+        while self.goal is not None and not self.leaving:
             yield KPlay(hold, duration=0.2, keep_lift=True)
+        self.goal, self.ready = None, False
 
     def _fade_out(self):
-        if self.player.animation.name.startswith(("kitten_crouch", "kitten_lie")):
+        """Il s'assoit (s'il ne l'est pas déjà) et s'efface : 728 [4, 13, 14] de l'original."""
+        name = self.player.animation.name
+        if name.startswith(LYING):
             yield KPlay(f"kitten_getup_{self._side()}")
-        yield KPlay("kitten_sit")
+        if name not in SITTING:
+            yield from self._turn("right")
+            yield KPlay("kitten_sit")
         yield KPlay("kitten_fade")
         self.gone = True
         while True:

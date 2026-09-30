@@ -112,6 +112,7 @@ class FeedingScenes:
             return
         try:
             yield from self._make_room(*CAN_ROOM)
+            self._shoo_kitten(*CAN_ROOM)
             yield from self._face("right")
             yield Play("sit_down")
             yield AwaitItem("can_sit", "can_wag")
@@ -131,6 +132,7 @@ class FeedingScenes:
             yield Play("can_rise")
         finally:
             self._end_item()
+            self._unshoo_kitten()
 
     def _do_carton(self):
         """Lait Felix : la gamelle vide apparaît, il attend la brique ; servie, elle verse, il lape
@@ -139,6 +141,7 @@ class FeedingScenes:
             return
         try:
             yield from self._make_room(*CARTON_ROOM)
+            self._shoo_kitten(*CARTON_ROOM)
             yield from self._face("right")
             yield Play("sit_down")
             yield Play("carton_bowl_in")
@@ -160,6 +163,7 @@ class FeedingScenes:
             yield Play("carton_clear")
         finally:
             self._end_item()
+            self._unshoo_kitten()
 
     def _do_treats(self):
         """Friandises : il regarde le sachet ; chaque friandise tombée, il va la manger là où elle est."""

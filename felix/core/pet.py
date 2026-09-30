@@ -66,6 +66,8 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
         self.treats = []  # friandises tombées du sachet (extension Feeding)
         self.kitten = None  # le chaton (extension Kitten), quand il est là
         self._item = self._item_state = None  # objet tenu au bout du curseur pour lui (Feeding)
+        self._kitten_unwanted = False  # caché pendant qu'il arrivait (Kitten)
+        self._shooed = None  # chaton écarté de la gamelle
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.gone = False  # sorti par la chatière (on peut fermer l'appli)
         self.away = False  # parti se promener dehors (invisible)
@@ -94,6 +96,8 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
         self.k = scale
         if self.ball is not None:
             self.ball.k = scale
+        if self.kitten is not None:
+            self.kitten.set_animations(animations, scale)
         if self.player is not None:
             index = self.player.index
             self.player = Player(animations[self.player.animation.name])
@@ -228,6 +232,7 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
     def grab(self, px, py):
         if not self.grabbable():
             return
+        self._abandon_kitten()
         self.scene = None
         self.mode = "held"
         self._pointer = (px, py)
@@ -335,11 +340,13 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
             self.action.start(self)
 
     def _run(self, script):
+        self._abandon_kitten()
         self.script = script
         self.action = next(self.script)
         self.action.start(self)
 
     def _start_fall(self):
+        self._abandon_kitten()
         self.scene = None
         self.mode = "falling"
         self.action = None

@@ -359,3 +359,14 @@ def test_food_and_games_are_grouped_in_submenus(bank, tmp_path):
     top = [item[0] for item in app.menu_tree() if item]
     assert "Nourrir" not in top and "Quitter" in top
     assert action(app, "Nourrir")  # toujours accessible à plat (tests, raccourcis)
+
+
+def test_the_kitten_can_be_hidden_from_the_menu_while_it_arrives(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    for _ in range(60):
+        app.tick(1 / 30)
+    action(app, "Montrer le chaton")[1](False)
+    app.tick(1 / 30)
+    assert app.pet.kitten is None  # il n'est pas encore là…
+    action(app, "Cacher le chaton")[1](False)  # … mais on peut déjà changer d'avis
+    assert not any(item and item[0] == "Cacher le chaton" for item in app.menu_actions())

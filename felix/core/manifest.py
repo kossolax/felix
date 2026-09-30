@@ -87,6 +87,7 @@ def load_manifest(data, sheet_sizes, bbox_of, scale=1):
         shift = tuple(v * scale for v in spec.get("shift", (0, 0)))
         if "exit" in spec:  # pieds du chat sur la dernière image : la position le rejoint à la fin
             shift = (spec["exit"][0] * scale - anchors[-1][0], 0)
+        enter = (anchors[0][0] - spec["enter"][0] * scale, 0) if "enter" in spec else (0, 0)  # … sur la première
         lx, ly = rects[-1][:2]
         marks = tuple(((lx + m[0] * scale, ly + m[1] * scale, m[2] * scale, m[3] * scale), (m[0] * scale, m[1] * scale))
                       for m in spec.get("marks", []))
@@ -99,6 +100,7 @@ def load_manifest(data, sheet_sizes, bbox_of, scale=1):
             dx=spec.get("dx", 0) * scale,
             facing=spec.get("facing", "front"),
             shift=shift,
+            enter=enter,
             marks=marks,
         )
     for name, spec in specs.items():

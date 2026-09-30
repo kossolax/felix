@@ -3,25 +3,49 @@
 Pendant une scène à deux, les images de Felix dessinent le chaton : on le cache, puis il
 réapparaît (spawn) là où elles le laissent, au pixel près (relais relevés sur les planches).
 """
-from felix.core.actions import BallView, Play, WalkTo
+from felix.core.actions import Await, BallView, Play, WalkTo
 from felix.core.kitten import LIFT, Kitten
 from felix.core.tuning import (
     EDGE_MARGIN, KITTEN_CARRY, KITTEN_FLAP_ROOM, KITTEN_MILK_ROOM, KITTEN_RUB_ROOM, KITTEN_TAIL_ROOM, KITTEN_WAIT,
 )
 
 KITTEN_DUO = {"kitten_rub": 4, "kitten_tail": 4, "kitten_flap": 1}  # scènes à deux, quand le chaton est là
+ROOMS = {"kitten_rub": KITTEN_RUB_ROOM, "kitten_tail": KITTEN_TAIL_ROOM, "kitten_flap": KITTEN_FLAP_ROOM}
+DRAWS_KITTEN = ("kitten_appear", "kitten_bowl", "kitten_milk_")  # Felix dessine le chaton avant qu'il existe
 
 
 class KittenScenes:
     """Scènes du chat (mêlées à Pet) ; elles ne se jouent que si l'extension est installée."""
 
+    @property
+    def kitten_coming(self):
+        """On a demandé le chaton : il n'est pas encore là, mais il arrive (et on ne l'a pas décommandé)."""
+        return self.kitten is None and not self._kitten_unwanted and (
+            self.scene == "kitten_show" or "kitten_show" in self._requests)
+
     def show_kitten(self):
-        if "kitten_appear" in self.anims and self.kitten is None and "kitten_show" not in self._requests:
+        if "kitten_appear" not in self.anims or self.kitten is not None:
+            return
+        if self.scene == "kitten_show":
+            self._kitten_unwanted = False  # on a changé d'avis pendant qu'il arrivait
+        elif "kitten_show" not in self._requests:
             self.request("kitten_show")
 
     def hide_kitten(self):
         if self.kitten is not None:
             self.kitten.leaving = True
+        elif "kitten_show" in self._requests:
+            self._requests.remove("kitten_show")
+        elif self.scene == "kitten_show":
+            self._kitten_unwanted = True  # la scène va au bout, puis il s'efface
+
+    def _abandon_kitten(self):
+        """Une scène à deux est coupée (Felix attrapé, tombé, parti) : le chaton reprend vie."""
+        if self.kitten is not None:
+            self.kitten.free()
+        elif (self.player is not None and self.player.animation.name.startswith(DRAWS_KITTEN)
+                and self.body is not None and self.body.support is not None):
+            self._spawn_kitten(43, ["kitten_sit_still", "kitten_sit_up"], lift=LIFT)
 
     def grab_kitten(self):
         if self.kitten is not None and self.kitten.visible:
@@ -39,7 +63,9 @@ class KittenScenes:
         k = self.kitten
         if k is None or not k.visible or k.leaving or k.held or k.falling or k.goal is not None:
             return {}
-        return KITTEN_DUO if self.body.support is not None and k.support == self.body.support else {}
+        if self.body.support is None or k.support != self.body.support:
+            return {}
+        return {name: w for name, w in KITTEN_DUO.items() if self._has_room(*ROOMS[name])}
 
     def _update_kitten(self, dt, snap):
         kitten = self.kitten
@@ -58,7 +84,30 @@ class KittenScenes:
         x, y = self.body.x + dx * self.k, self.body.y
         if self.kitten is None:
             self.kitten = Kitten(self.anims, x, y, self.body.support, rng=self.rng, scale=self.k)
-        self.kitten.spawn(x, y, anims, lift=lift, support=self.body.support)
+        self.kitten.spawn(x, y, anims, lift=lift * self.k, support=self.body.support)
+        if self._kitten_unwanted:  # caché pendant qu'il arrivait
+            self.kitten.leaving, self._kitten_unwanted = True, False
+
+    def _shoo_kitten(self, left, right):
+        """Le chaton s'écarte de la place d'une scène (la gamelle…) et attend à côté."""
+        k = self.kitten
+        if k is None or not k.visible or k.held or k.falling or k.leaving or k.support != self.body.support:
+            return
+        margin = 40 * self.k
+        x0, x1 = self.body.x - left * self.k - margin, self.body.x + right * self.k + margin
+        if not x0 < k.x < x1:
+            return
+        lo, hi = k.bounds()
+        for x in sorted((x0, x1), key=lambda x: abs(x - k.x)):
+            if lo <= x <= hi:
+                k.goal = (x, "right" if x < self.body.x else "left", "stand")
+                self._shooed = k
+                return
+
+    def _unshoo_kitten(self):
+        k, self._shooed = self._shooed, None
+        if k is not None and k is self.kitten and not k.puppet:
+            k.goal, k.ready = None, False
 
     def _do_kitten_show(self):
         """Felix s'assoit et le chaton apparaît à côté de lui ; une fois sur deux, ils boivent du lait."""
@@ -96,10 +145,8 @@ class KittenScenes:
         yield from self._make_room(*room)
         yield from self._face("right")
         kitten.goal = (self.body.x + dx * self.k, "right", "stand")
-        waited = 0.0
-        while not kitten.ready and waited < KITTEN_WAIT and self.kitten is kitten and kitten.goal is not None:
-            yield Play("stand_right", duration=0.2)
-            waited += 0.2
+        yield Await("stand_right", lambda: kitten.ready or self.kitten is not kitten or kitten.goal is None,
+                    KITTEN_WAIT)
         if self.kitten is not kitten or not kitten.ready:
             if self.kitten is kitten:
                 kitten.goal = None
@@ -121,7 +168,7 @@ class KittenScenes:
         if far > self.body.x + 10:
             yield WalkTo(far, idle=False, gait="kitten_carry")
         yield Play("kitten_put_down_right", event="purr")
-        self._spawn_kitten(38, ["kitten_crouch_right", "kitten_crouch_tail_right"])
+        self._spawn_kitten(38, ["kitten_crouch_right"] + ["kitten_crouch_tail_right"] * 4)  # état 9 d'origine
         yield Play("stand_right", duration=self.rng.uniform(1, 3))
 
     def _do_kitten_tail(self):
@@ -146,10 +193,7 @@ class KittenScenes:
         yield Play("sit_down")
         yield Play("sit_front", duration=0.5)
         kitten.goal = (self.body.x + 34 * self.k, "right", "lie")
-        waited = 0.0
-        while not kitten.ready and waited < KITTEN_WAIT and self.kitten is kitten and kitten.goal is not None:
-            yield Play("sit_front", duration=0.2)
-            waited += 0.2
+        yield Await("sit_front", lambda: kitten.ready or self.kitten is not kitten or kitten.goal is None, KITTEN_WAIT)
         if self.kitten is not kitten or not kitten.ready:
             if self.kitten is kitten:
                 kitten.goal = None
@@ -159,8 +203,7 @@ class KittenScenes:
         for name in ("kitten_flap_appear", "kitten_flap_felix_in", "kitten_flap_through", "kitten_flap_push",
                      "kitten_flap_wait", "kitten_flap_back"):
             yield Play(name)
-        for _ in range(self.rng.randint(1, 2)):
-            yield Play("kitten_flap_sit")
+        yield Play("kitten_flap_sit")
         yield Play("kitten_flap_leave")
         self._spawn_kitten(41, ["kitten_stand_right"], lift=LIFT)
         yield Play("sit_front", duration=0.5)

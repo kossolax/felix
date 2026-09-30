@@ -370,7 +370,7 @@ class FelixApp(QObject):
                   ("Regarder le poisson rouge", lambda _=False: self.pet.request("fishbowl"), None)]
         kitten = []
         if "kitten" in ext:
-            if self.pet.kitten is None:
+            if self.pet.kitten is None and not self.pet.kitten_coming:
                 kitten = [("Montrer le chaton", lambda _=False: self.pet.show_kitten(), None)]
             else:
                 kitten = [("Cacher le chaton", lambda _=False: self.pet.hide_kitten(), None)]
