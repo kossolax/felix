@@ -81,5 +81,7 @@ if sys.platform != "win32":
     # la distribution, que le .deb déclare en dépendances (dpkg-shlibdeps) ; Python et Qt restent embarqués.
     a.exclude_system_libraries()
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="felix", console=False, icon="assets/icon/felix.ico")
-coll = COLLECT(exe, a.binaries, a.datas, name="felix")
+strip = sys.platform != "win32"  # sans symboles de débogage (le Python de la CI en garde 20 Mo)
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="felix", console=False, icon="assets/icon/felix.ico",
+          strip=strip)
+coll = COLLECT(exe, a.binaries, a.datas, strip=strip, name="felix")
