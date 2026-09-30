@@ -17,6 +17,8 @@ def parse_args(argv):
     p.add_argument("--selftest", action="store_true", help="fait tourner l'appli sans affichage réel et quitte")
     p.add_argument("--seed", type=int, help="graine du hasard (reproductibilité)")
     p.add_argument("--demo", default="", help=argparse.SUPPRESS)  # ex. feed,drink : scènes lancées au démarrage
+    p.add_argument("--scale", type=int, choices=[1, 2], default=1, help=argparse.SUPPRESS)  # taille ×2 (tests)
+    p.add_argument("--speed", type=float, default=1.0, help=argparse.SUPPRESS)  # temps accéléré (tests)
     return p.parse_args(argv)
 
 
@@ -171,15 +173,11 @@ def main(argv=None):
 
     from PySide6.QtCore import QSettings
     settings = QSettings("felix", "felix")
-    try:
-        scale = 2 if int(settings.value("scale", 1)) == 2 else 1
-    except (TypeError, ValueError):
-        scale = 1
 
     def bank_loader(factor):
         return SpriteBank.load(MANIFEST, sprites, scale=factor)
 
-    bank = bank_loader(scale)
+    bank = bank_loader(args.scale)
     rng = random.Random(args.seed) if args.seed is not None else None
     upgrader = None
     if backend.name == "degraded" and session == "wayland" and args.backend == "auto":
@@ -190,7 +188,7 @@ def main(argv=None):
     from felix.render.sound import SoundPlayer
     sound = SoundPlayer(SOUNDS) if SOUNDS.exists() and not args.selftest else None
     felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader, sound=sound,
-                     settings=settings, bank_loader=bank_loader)
+                     settings=settings, bank_loader=bank_loader, speed=args.speed)
     if args.selftest:
         code = selftest(felix)
         backend.stop()

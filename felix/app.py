@@ -25,13 +25,12 @@ TOPMOST_MS = 2000
 UPGRADE_MS = 5000
 SAVE_MS = 60_000
 LEAVE_TIMEOUT = 8.0  # s : on ferme même si le chat n'a pas pu passer sa chatière
-SPEEDS = {"Vitesse lente": 0.6, "Vitesse normale": 1.0, "Vitesse rapide": 1.6}
 DRAG_THRESHOLD = 6  # px : en dessous, un clic est une caresse
 
 
 class FelixApp(QObject):
     def __init__(self, bank, backend, rng=None, debug=False, upgrader=None, settings=None, sound=None,
-                 bank_loader=None):
+                 bank_loader=None, speed=1.0):
         super().__init__()
         self.bank = bank
         self.bank_loader = bank_loader  # scale -> SpriteBank, pour changer de taille à chaud
@@ -44,10 +43,7 @@ class FelixApp(QObject):
         self._quitting = False
         self._quit_elapsed = 0.0
         self.quitting_done = False
-        try:
-            self.speed = float(self.settings.value("speed", 1.0))
-        except (TypeError, ValueError):
-            self.speed = 1.0
+        self.speed = speed  # accéléré ou ralenti pour les tests (--speed), pas dans le menu
         self._press = None  # point d'appui tant qu'on n'a pas vraiment tiré le chat
         self.window.grabbed.connect(self._on_press)
         self.window.dragged.connect(self._on_drag)
@@ -58,7 +54,7 @@ class FelixApp(QObject):
         self.props = PropManager(bank, on_created=self.window.raise_)
         self.toybox = ToyboxWindow(bank, on_play=self._play_from_toybox, on_hide=lambda: self.set_toybox(False),
                                    on_moved=self._toybox_dropped)
-        self._toybox_on = self.settings.value("toybox/visible", False) in (True, "true")
+        self._toybox_on = False  # rangée à chaque démarrage ; seule sa place est retenue
         self._snap = None
         self.ball_window = BallWindow(bank, on_grab=self.pet.grab_ball, on_drag=self.pet.drag_ball,
                                       on_throw=self._ball_thrown)
@@ -116,8 +112,8 @@ class FelixApp(QObject):
             self.pet.release()
 
     def set_scale(self, big):
+        """Taille ×2 à chaud (tests ; au démarrage : --scale 2)."""
         scale = 2 if big else 1
-        self.settings.setValue("scale", scale)
         if self.bank_loader is None or scale == self.bank.scale:
             return
         self.bank = self.bank_loader(scale)
@@ -129,7 +125,6 @@ class FelixApp(QObject):
 
     def set_toybox(self, visible):
         self._toybox_on = visible
-        self.settings.setValue("toybox/visible", visible)
         if not visible:
             self.toybox.hide()
             if self.pet.ball is not None and self.pet.ball.home == "box":
@@ -191,7 +186,6 @@ class FelixApp(QObject):
 
     def set_speed(self, factor):
         self.speed = factor
-        self.settings.setValue("speed", factor)
 
     def request_quit(self):
         """Quitter : le chat sort d'abord par sa chatière."""
@@ -282,9 +276,6 @@ class FelixApp(QObject):
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
             ("Sons", self.set_sound, self.sound.enabled if self.sound is not None else False),
             ("Boîte à jouets", self.set_toybox, self._toybox_on),
-            ("Grande taille (×2)", self.set_scale, self.bank.scale == 2),
-            *[(label, (lambda _=False, f=factor: self.set_speed(f)), self.speed == factor)
-              for label, factor in SPEEDS.items()],
             ("Lancer au démarrage", autostart.set_enabled, autostart.is_enabled()),
             None,
             ("Débogage", self.toggle_debug, self.overlay is not None),

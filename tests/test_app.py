@@ -97,7 +97,7 @@ def test_prop_events_reach_the_prop_manager(bank, tmp_path):
     assert len(app.props.windows) == 1
 
 
-def test_big_size_is_applied_live_and_remembered(bank, tmp_path):
+def test_big_size_can_be_applied_live_for_tests(bank, tmp_path):
     from felix.paths import MANIFEST
     from felix.render.sprites import SpriteBank
 
@@ -109,10 +109,9 @@ def test_big_size_is_applied_live_and_remembered(bank, tmp_path):
     for _ in range(60):
         app.tick(1 / 30)
     width = app.window.width()
-    action(app, "Grande taille")[1](True)
+    app.set_scale(True)
     app.tick(1 / 30)
     assert app.pet.k == 2 and app.window.width() == 2 * width
-    assert int(app.settings.value("scale")) == 2
 
 
 def test_about_text_credits_the_original_and_the_sounds(bank, tmp_path):
@@ -131,14 +130,22 @@ def test_tray_menu_mirrors_the_cat_menu(bank, tmp_path):
     assert labels[:2] == ["Nourrir", "Donner du lait"] and labels[-1] == "Quitter"
 
 
-def test_speed_setting_scales_time_and_is_remembered(bank, tmp_path):
+def test_speed_scales_time_for_tests(bank, tmp_path):
     app = make_app(bank, tmp_path)
     app.tick(0.03)
     before = app.pet.clock
-    action(app, "Vitesse rapide")[1](True)
+    app.set_speed(1.6)
     app.tick(0.03)
     assert app.pet.clock - before == pytest.approx(0.03 * 1.6)
-    assert float(app.settings.value("speed")) == pytest.approx(1.6)
+
+
+def test_size_and_speed_are_not_in_the_menu_nor_remembered(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    labels = [item[0] for item in app.menu_actions() if item]
+    assert not [label for label in labels if "Vitesse" in label or "taille" in label]
+    app.settings.setValue("speed", 1.6)  # réglages d'une ancienne version
+    again = make_app(bank, tmp_path)
+    assert again.speed == 1.0
 
 
 def test_quit_lets_the_cat_leave_through_its_flap_first(bank, tmp_path):
@@ -154,7 +161,7 @@ def test_quit_lets_the_cat_leave_through_its_flap_first(bank, tmp_path):
     assert "exit_flap" in seen and app.quitting_done
 
 
-def test_toybox_can_be_shown_from_the_menu_and_is_remembered(bank, tmp_path):
+def test_toybox_is_put_away_at_each_start_but_keeps_its_place(bank, tmp_path):
     app = make_app(bank, tmp_path)
     app.tick(1 / 30)
     assert not app.toybox.isVisible()
@@ -162,9 +169,14 @@ def test_toybox_can_be_shown_from_the_menu_and_is_remembered(bank, tmp_path):
     app.tick(1 / 30)
     assert app.toybox.isVisible()
     assert app.toybox.y() + app.toybox.height() == 1080  # posée sur le sol
+    drag(app, app.toybox.center_x, 700)
+    app.quit()
     again = make_app(bank, tmp_path)
     again.tick(1 / 30)
-    assert again.toybox.isVisible() and again.toybox.center_x == app.toybox.center_x
+    assert not again.toybox.isVisible()
+    action(again, "Boîte à jouets")[1](True)
+    again.tick(1 / 30)
+    assert again.toybox.center_x == 700
 
 
 def settled_app(bank, tmp_path, box=True):
