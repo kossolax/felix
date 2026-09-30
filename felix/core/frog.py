@@ -5,7 +5,7 @@ de contact, update(), frame et anim pour l'affichage.
 """
 import random
 
-from felix.core.ball import BallKind, _bounds
+from felix.core.ball import BallKind, _bounds, screen_edge
 from felix.core.physics import step
 from felix.core.tuning import FROG_HOP, FROG_HOP_FPS
 
@@ -94,8 +94,8 @@ class Frog:
             if self.entering:
                 self.entering = not self.support.spans(self.x)
             elif not self.support.spans(self.x):
-                if self.exits and self.support.owner is None:
-                    self.gone = True  # au bout du sol de son écran : partie
+                if self.exits and screen_edge(snap, self.support, self.heading):
+                    self.gone = True  # sortie par le bord de l'écran
                     return
                 self.support = None  # au bout de sa surface : elle tombe
                 self.vx = self.vy = 0.0

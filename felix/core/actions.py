@@ -426,8 +426,16 @@ class Chase:
         x = pet.body.x + pet.player.animation.dx * steps
         lo, hi = seg.x0 + EDGE_MARGIN * pet.k, seg.x1 - EDGE_MARGIN * pet.k
         reached = (x - target) * sign >= 0
-        pet.body.x = min(max(target if reached else x, lo), hi)
-        return reached or pet.body.x in (lo, hi)
+        if reached:
+            x = target
+        if sign > 0:  # bornée devant lui seulement, comme WalkTo
+            x = min(x, max(hi, pet.body.x))
+            stop = x >= hi
+        else:
+            x = max(x, min(lo, pet.body.x))
+            stop = x <= lo
+        pet.body.x = x
+        return reached or stop
 
 
 class Bat(Play):

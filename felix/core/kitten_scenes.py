@@ -26,9 +26,8 @@ class KittenScenes:
     def show_kitten(self):
         if "kitten_appear" not in self.anims or self.kitten is not None:
             return
-        if self.scene == "kitten_show":
-            self._kitten_unwanted = False  # on a changé d'avis pendant qu'il arrivait
-        elif "kitten_show" not in self._requests:
+        self._kitten_unwanted = False  # on a pu changer d'avis pendant qu'il arrivait
+        if self.scene != "kitten_show" and "kitten_show" not in self._requests:
             self.request("kitten_show")
 
     def hide_kitten(self):
@@ -43,9 +42,8 @@ class KittenScenes:
         """Une scène à deux est coupée (Felix attrapé, tombé, parti) : le chaton reprend vie."""
         if self.kitten is not None:
             self.kitten.free()
-        elif (self.player is not None and self.player.animation.name.startswith(DRAWS_KITTEN)
-                and self.body is not None and self.body.support is not None):
-            self._spawn_kitten(43, ["kitten_sit_still", "kitten_sit_up"], lift=LIFT)
+        elif self.player is not None and self.player.animation.name.startswith(DRAWS_KITTEN) and self.body:
+            self._spawn_kitten(43, ["kitten_sit_still", "kitten_sit_up"], lift=LIFT)  # sa fenêtre fermée : il tombe aussi
 
     def grab_kitten(self):
         if self.kitten is not None and self.kitten.visible:
@@ -113,6 +111,12 @@ class KittenScenes:
         """Felix s'assoit et le chaton apparaît à côté de lui ; une fois sur deux, ils boivent du lait."""
         if "kitten_appear" not in self.anims or self.kitten is not None:
             return
+        try:
+            yield from self._show_kitten_scene()
+        finally:
+            self._kitten_unwanted = False  # coupée avant qu'il arrive : on repart de zéro
+
+    def _show_kitten_scene(self):
         yield from self._make_room(*KITTEN_MILK_ROOM)
         yield from self._face("right")
         yield Play("sit_down")

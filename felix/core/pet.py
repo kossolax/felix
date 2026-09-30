@@ -125,6 +125,8 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
 
     def request(self, what):
         """Commande de l'utilisateur ('feed', 'drink', 'yarn'…). Interrompt ce que fait le chat."""
+        if what == self.scene or what in self._requests:
+            return  # déjà en cours ou prévue : cliquer trois fois ne la fait pas jouer trois fois
         self._requests.append(what)
         if (self.body is not None and self.scene is None and self.mode == "script"
                 and not getattr(self.action, "airborne", False)):

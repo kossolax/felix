@@ -14,7 +14,8 @@ from felix.core.tuning import (
 
 TREAT = BallKind("treats_treat", 4, 1000, 10_000.0, 0.0, 0, None, frames=1, grabbable=False)
 NEEDS = {"can": "can_serve", "carton": "carton_pour", "treats": "treats_eat_right"}  # animations requises
-SEATED = ("sit_front", "head_", "paw_", "stroked")  # assis de face : il attend l'objet sans se relever
+SEATED = ("sit_front", "head_", "paw_up", "paw_left", "paw_right", "paw_bottom_",
+          "stroked")  # assis de face : il attend l'objet sans se relever (pas paw_prints, debout)
 
 
 class AwaitItem:
@@ -198,19 +199,28 @@ class FeedingScenes:
         Interrompu (attrapé…), il revient finir celles qui restent par terre."""
         if self._item != "treats" and not self.treats:
             return
+
+        def bag():  # le sachet est encore au bout du curseur (et pas un autre objet tendu entre-temps)
+            return self._item == "treats" and self._item_state == "held"
+
         try:
             start = self.clock
             while True:
                 treat = self._next_treat()
                 if treat is not None:
                     start = self.clock
-                    yield from self._eat_treat(treat)
+                    acted = False
+                    for action in self._eat_treat(treat):
+                        acted = True
+                        yield action
+                    if not acted and treat in self.treats:
+                        self.treats.remove(treat)  # rien à faire pour l'atteindre : on ne tourne pas en rond
                     continue
-                if self._item_state != "held" and all(t.grounded for t in self.treats):
+                if not bag() and all(t.grounded for t in self.treats):
                     break
-                if self._item_state == "held" and self.clock - start >= HOLD_PATIENCE:
+                if bag() and self.clock - start >= HOLD_PATIENCE:
                     self._item_state = "done"  # le sachet s'en va ; il finit ce qui tombe encore
-                yield LookAtCursor(lambda: self._item_state != "held" or self._next_treat() is not None
+                yield LookAtCursor(lambda: not bag() or self._next_treat() is not None
                                    or self.clock - start >= HOLD_PATIENCE)
         finally:
             if self._item == "treats":
@@ -274,7 +284,13 @@ class FeedingScenes:
         self.body.x = target
         yield from self._face(side)
         treat.taken = True  # dessinée par les images du chat
-        yield Play(f"treats_crouch_{side}")
+        crouched = False
+        try:
+            yield Play(f"treats_crouch_{side}")
+            crouched = True
+        finally:
+            if not crouched:
+                treat.taken = False  # interrompu (attrapé…) avant de la prendre : elle se remontre
         self.treats.remove(treat)
         yield Play(f"treats_eat_{side}", event="crunch")
         self.needs.hunger = max(0.0, self.needs.hunger - TREAT_FOOD)

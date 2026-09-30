@@ -42,6 +42,13 @@ MOUSE = BallKind("mouse_walk_right", 27, 6, 0.0, 0.0, 0, None, frames=6, anim_le
                  grabbable=False, speed=60.0)  # souris mécanique : elle marche droit devant elle, la clé tourne
 
 
+def screen_edge(snap, seg, side):
+    """Le bout `side` (1 : droite) de `seg` est-il le bord de l'écran : un sol qu'aucun autre écran
+    ne prolonge ?"""
+    edge = seg.x0 if side < 0 else seg.x1
+    return seg.owner is None and not any(m.geometry.contains(edge + side, seg.y - 1) for m in snap.monitors)
+
+
 def _window_rect(snap, wid):
     win = next((w for w in snap.windows if w.id == wid), None)
     return win.rect if win else None
@@ -155,8 +162,8 @@ class Ball:
             self.x = lo if side < 0 else hi - 0.01
             self.vx = -self.vx * WALL_BOUNCE
             return
-        if self.exits and seg.owner is None:
-            self.gone = True  # au bout du sol de son écran : partie
+        if self.exits and screen_edge(snap, seg, side):
+            self.gone = True  # sortie par le bord de l'écran
             return
         nxt = support_at(segs, self.x, seg.y)
         if nxt is not None:  # une autre surface prend le relais à la même hauteur
@@ -169,7 +176,7 @@ class Ball:
     def _wall(self, seg, side, snap):
         edge = seg.x0 if side < 0 else seg.x1
         if seg.owner is None:  # bord d'écran, sauf si un autre écran continue là
-            return not any(m.geometry.contains(edge + side, seg.y - 1) for m in snap.monitors)
+            return screen_edge(snap, seg, side)
         rect = _window_rect(snap, seg.owner)
         return rect is not None and rect.x < edge < rect.right  # bord caché par une fenêtre devant
 

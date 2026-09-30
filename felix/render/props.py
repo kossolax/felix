@@ -13,6 +13,9 @@ GHOST_HOLD = 0.15  # s : fantôme tramé d'un accessoire qui disparaît (le plac
 GHOST_FADE_MS = 350  # … puis fondu
 
 
+_MASKS = {}
+
+
 def shape_masks():
     """Découper les fenêtres à la forme de l'accessoire : sous X11 sans compositeur, sinon il s'affiche
     dans un rectangle noir ; Windows gère la transparence au pixel."""
@@ -39,7 +42,12 @@ class PropWindow(QWidget):
     def _set_pixmap(self, pixmap):
         self.pixmap = pixmap
         if self.masked:
-            self.setMask(QRegion(QBitmap.fromImage(pixmap.toImage().createAlphaMask())))
+            key = pixmap.cacheKey()
+            if key not in _MASKS:  # une même image répétée (les rayures, 100 fois) : un seul calcul
+                if len(_MASKS) > 256:
+                    _MASKS.clear()
+                _MASKS[key] = QRegion(QBitmap.fromImage(pixmap.toImage().createAlphaMask()))
+            self.setMask(_MASKS[key])
 
     def closeEvent(self, event):
         self.closed = True
@@ -122,6 +130,8 @@ class PropManager:
         for w in self.windows:
             if not w.closed:
                 w.setVisible(not hidden)
+        if not hidden and self.on_created is not None:
+            self.on_created()  # le chat repasse devant ses accessoires
 
     def handle(self, event):
         if not isinstance(event, tuple):

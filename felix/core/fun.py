@@ -6,7 +6,7 @@ côté, elles sont jouées en miroir.
 import math
 
 from felix.core.actions import Bat, Jump, Play, WalkTo, WatchBall
-from felix.core.ball import BEACH, MOUSE, Ball
+from felix.core.ball import BEACH, MOUSE, Ball, screen_edge
 from felix.core.frog import Frog
 from felix.core.tuning import (
     BEACH_POUNCE_REACH, BEACH_REST, BEACH_ROUNDS, BEACH_SPEED, EDGE_MARGIN, FROG_APPROACH_PAUSE, FROG_FLEE, FROG_HOP, FROG_NEAR,
@@ -94,7 +94,7 @@ class FunScenes:
         side, end = yield from self._meet_toy(MOUSE_WALK)
         mirrored = side < 0
         seg = self.body.support
-        offscreen = seg.owner is None  # le bout du sol est le bord de l'écran : elle arrive de derrière
+        offscreen = screen_edge(self.snap, seg, side)  # le bout du sol est le bord de l'écran : elle arrive de derrière
         self.ball = Ball(end + side * (MOUSE.radius + 4) * k if offscreen else end - side * MOUSE.radius * k,
                          seg.y, scale=k, kind=MOUSE)
         self.ball.support = seg
@@ -124,7 +124,7 @@ class FunScenes:
         k = self.k
         side, end = yield from self._meet_toy(FROG_WALK)
         seg = self.body.support
-        offscreen = seg.owner is None  # le bout du sol est le bord de l'écran : elle arrive de derrière
+        offscreen = screen_edge(self.snap, seg, side)  # le bout du sol est le bord de l'écran : elle arrive de derrière
         frog = Frog(end + side * 55 * k if offscreen else end - side * 25 * k, seg.y, heading=-side, scale=k,
                     rng=self.rng)
         frog.support = seg
