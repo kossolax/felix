@@ -13,9 +13,9 @@ from felix.core.physics import GRAVITY, Body, step
 from felix.core.surfaces import compute_surfaces
 
 EDGE_MARGIN = 30
-JUMP_UP = 380
+JUMP_UP = 650
 JUMP_DOWN = 700
-JUMP_REACH = 450
+JUMP_REACH = 500
 JUMP_APEX = 70
 SCARED_FALL = 400
 

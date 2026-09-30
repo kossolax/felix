@@ -105,6 +105,8 @@ def main(argv=None):
     backend = create_backend(choose_backend(session, args.backend, gnome_helper_available(session)), session)
     if args.probe:
         from felix.platform.fake import scene_to_dict
+        if hasattr(backend, "wait_ready"):
+            backend.wait_ready()
         print(json.dumps({"backend": backend.name, **scene_to_dict(backend.snapshot())}, indent=2))
         backend.stop()
         return 0

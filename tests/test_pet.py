@@ -99,3 +99,17 @@ def test_pet_hides_while_a_fullscreen_window_is_on_top():
     run(pet, world(), 4)
     assert run(pet, world(WinRect(3, Rect(0, 0, 1920, 1080), fullscreen=True)), 0.1).hidden
     assert not run(pet, world(), 0.1).hidden
+
+
+def test_pet_climbs_windows_of_a_recorded_gnome_scene():
+    from pathlib import Path
+    from felix.platform.fake import load_scene
+    snap = load_scene(Path(__file__).parent / "scenes" / "gnome46_x11_gedit_xclock.json")
+    owners = set()
+
+    def check(pet, view):
+        if pet.body.support is not None:
+            owners.add(pet.body.support.owner)
+
+    run(new_pet(0), snap, 180, check)
+    assert {w.id for w in snap.windows} & owners
