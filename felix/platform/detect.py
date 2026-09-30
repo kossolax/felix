@@ -22,3 +22,25 @@ def choose_backend(session, requested="auto", helper_available=False):
     if helper_available:
         return "gnome_shell"
     return "x11" if session == "x11" else "degraded"
+
+
+class BackendUpgrader:
+    """Remplace le backend dégradé par celui de l'extension GNOME dès qu'elle apparaît."""
+
+    def __init__(self, check, factory):
+        self.check = check
+        self.factory = factory
+        self.done = False
+
+    def poll(self, current):
+        if self.done or not self.check():
+            return None
+        try:
+            new = self.factory()
+        except Exception:
+            import logging
+            logging.getLogger("felix").exception("passage au backend GNOME impossible")
+            return None
+        current.stop()
+        self.done = True
+        return new

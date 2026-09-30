@@ -1,0 +1,8 @@
+{
+  "uuid": "felix-helper@kossolax.github.io",
+  "name": "Felix Helper",
+  "description": "Expose sur D-Bus la position du pointeur et la géométrie des fenêtres (sans titres) pour Virtual Felix, le chat de bureau.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/kossolax/felix",
+  "version": 1
+}

@@ -1,4 +1,5 @@
 """Application : boucle 30 Hz reliant backend de plateforme, cerveau du chat et fenêtre."""
+import logging
 import sys
 
 from PySide6.QtCore import QElapsedTimer, QObject, Qt, QTimer
@@ -11,10 +12,11 @@ from felix.render.pet_window import PetWindow
 TICK_MS = 33
 MAX_DT = 0.1
 TOPMOST_MS = 2000
+UPGRADE_MS = 5000
 
 
 class FelixApp(QObject):
-    def __init__(self, bank, backend, rng=None, debug=False):
+    def __init__(self, bank, backend, rng=None, debug=False, upgrader=None):
         super().__init__()
         self.bank = bank
         self.backend = backend
@@ -39,11 +41,25 @@ class FelixApp(QObject):
             self.topmost_timer.setInterval(TOPMOST_MS)
             self.topmost_timer.timeout.connect(lambda: keep_on_top(int(self.window.winId())))
 
+        self.upgrade_timer = None
+        if upgrader is not None:
+            self.upgrade_timer = QTimer(self)
+            self.upgrade_timer.setInterval(UPGRADE_MS)
+            self.upgrade_timer.timeout.connect(lambda: self._try_upgrade(upgrader))
+
+    def _try_upgrade(self, upgrader):
+        new = upgrader.poll(self.backend)
+        if new is not None:
+            logging.getLogger("felix").info("backend : passage de %s à %s", self.backend.name, new.name)
+            self.backend = new
+            self.upgrade_timer.stop()
+
     def start(self):
         self.clock.start()
         self.timer.start()
-        if self.topmost_timer is not None:
-            self.topmost_timer.start()
+        for extra in (self.topmost_timer, self.upgrade_timer):
+            if extra is not None:
+                extra.start()
 
     def tick(self, dt=None):
         if dt is None:

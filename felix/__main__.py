@@ -146,7 +146,12 @@ def main(argv=None):
 
     bank = SpriteBank.load(MANIFEST, sprites)
     rng = random.Random(args.seed) if args.seed is not None else None
-    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay)
+    upgrader = None
+    if backend.name == "degraded" and session == "wayland" and args.backend == "auto":
+        from felix.platform.detect import BackendUpgrader
+        from felix.platform.gnome_shell import GnomeShellBackend
+        upgrader = BackendUpgrader(lambda: gnome_helper_available(session), GnomeShellBackend)
+    felix = FelixApp(bank, backend, rng=rng, debug=args.debug_overlay, upgrader=upgrader)
     if args.selftest:
         code = selftest(felix)
         backend.stop()

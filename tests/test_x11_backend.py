@@ -16,25 +16,21 @@ from felix.core.world import Rect  # noqa: E402
 @pytest.fixture
 def xserver():
     from Xlib import display
-    for num in range(91, 99):
-        if not os.path.exists(f"/tmp/.X11-unix/X{num}"):
-            break
-    proc = subprocess.Popen(["Xvfb", f":{num}", "-screen", "0", "1600x900x24", "-nolisten", "tcp"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    name = f":{num}"
-    for _ in range(50):
-        try:
-            d = display.Display(name)
-            break
-        except Exception:
-            time.sleep(0.1)
-    else:
+    read_fd, write_fd = os.pipe()
+    proc = subprocess.Popen(["Xvfb", "-displayfd", str(write_fd), "-screen", "0", "1600x900x24", "-nolisten", "tcp"],
+                            pass_fds=(write_fd,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.close(write_fd)
+    with os.fdopen(read_fd) as pipe:
+        number = pipe.readline().strip()  # Xvfb choisit lui-même un numéro libre
+    if not number:
         proc.kill()
         pytest.skip("Xvfb n'a pas démarré")
+    name = f":{number}"
+    d = display.Display(name)
     yield name, d
     d.close()
-    proc.kill()
-    proc.wait()
+    proc.terminate()  # arrêt propre : Xvfb supprime son socket et son verrou
+    proc.wait(timeout=5)
 
 
 def make_window(d, x, y, w, h, **props):
