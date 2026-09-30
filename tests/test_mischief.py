@@ -232,3 +232,14 @@ def test_toybox_near_the_left_edge_puts_the_cat_on_its_right_mirrored():
             seen = True
             break
     assert seen
+
+
+def test_toybox_game_lasts_a_while_before_the_ball_goes_back():
+    snap = world()
+    for seed in range(4):
+        pet = settled_pet(snap, seed)
+        pet.request("toybox_yarn", near=1200)
+        names, _ = run(pet, snap, 40)
+        rounds = sum(1 for a, b in zip(names, names[1:]) if b == "yarn_play" and a != "yarn_play")
+        playing = names.count("yarn_play") * DT
+        assert rounds >= 1 and playing >= 7.0, (seed, playing)

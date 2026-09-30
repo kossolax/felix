@@ -47,6 +47,7 @@ CLIMB_LIFT = 24  # le chat quitte le sol en se dressant contre la vitre
 CLIMB_TOP_DROP = 69  # pieds du chat accroché, sous le bord, au début de climb_top
 CLIMB_MIN = 120  # une fenêtre moins haute que ça au-dessus du chat : on saute
 TOYBOX_BALL_OFFSET = 180  # la pelote de yarn_roll_in surgit 180 px à droite du chat : de la boîte
+TOYBOX_ROUNDS = (3, 5)  # tours de yarn_play (2,5 s chacun, bouclage sans à-coup) avant de renvoyer la pelote
 AWAY_TIME = (60, 300)  # s dehors, après une sortie par la chatière
 OUTING_ROOM = (30, 110)
 
@@ -769,8 +770,10 @@ class Pet:
             yield from self._go_near(near + offset if mirrored else near - offset)
         yield from self._face("left" if mirrored else "right")
         yield Play("sit_down", mirrored=mirrored)
-        for name in ("yarn_roll_in", "yarn_play", "yarn_sit_bat"):
-            yield Play(name, mirrored=mirrored)
+        yield Play("yarn_roll_in", mirrored=mirrored)
+        for _ in range(self.rng.randint(*TOYBOX_ROUNDS)):
+            yield Play("yarn_play", mirrored=mirrored)
+        yield Play("yarn_sit_bat", mirrored=mirrored)
         yield Play("sit_up", mirrored=mirrored)
 
     def _climb_target(self, anywhere=False):
