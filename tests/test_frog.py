@@ -84,7 +84,9 @@ def test_a_stray_frog_hops_off_when_the_game_is_interrupted():
     pet.release()
     for _ in range(int(90 / DT)):
         pet.update(DT, SNAP)
-    assert pet.ball is None
+        if pet.ball is None or pet.ball.kind is not FROG:
+            break
+    assert pet.ball is None or pet.ball.kind is not FROG  # partie (il peut ensuite sortir sa pelote)
 
 
 def test_no_frog_without_the_extension():

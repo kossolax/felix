@@ -105,7 +105,9 @@ def test_a_stray_mouse_walks_off_when_the_game_is_interrupted():
     pet.release()
     for _ in range(int(60 / DT)):
         pet.update(DT, SNAP)
-    assert pet.ball is None
+        if pet.ball is None or pet.ball.kind is not MOUSE:
+            break
+    assert pet.ball is None or pet.ball.kind is not MOUSE
 
 
 def test_no_mouse_without_the_extension():

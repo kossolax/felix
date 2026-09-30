@@ -39,7 +39,7 @@ BAT_FROM = 44  # … et celle de la 2e image de yarn_bat, d'où la vraie pelote 
 BAKED_BALL = frozenset({"yarn_sniff", "yarn_pat", "yarn_unroll", "yarn_follow", "yarn_bat_away",
                         "beach_sit", "mouse_near", "mouse_pounce", "mouse_play",
                         "mouse_upright"})  # balle (ou jouet) dessinée par les images du chat
-BEACH_LAUNCH = (3, 65)  # ballon : il quitte la patte à la 4e image de beach_pat, à 65 px des pieds
+BEACH_LAUNCH = (3, 66)  # ballon : il quitte la patte à la 4e image de beach_pat, à 66 px des pieds
 MOUSE_SPEED = 60  # px/s : la souris mécanique avance de 6 px par image, comme dessinée
 MOUSE_NEAR = 107  # px : où les images du chat (511) la dessinent quand elle arrive
 MOUSE_FROM = 137  # … et d'où elle repart (514, 14e image)
