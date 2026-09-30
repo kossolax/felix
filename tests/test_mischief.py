@@ -170,3 +170,20 @@ def test_a_request_brings_the_cat_back_early():
     pet.request("feed")
     names, _ = run(pet, snap, 6)
     assert "enter_flap" in names and "cupboard_enter" in names
+
+
+def test_yarn_sometimes_dangles_on_its_string_and_the_cat_leaps_for_it():
+    snap = world()
+    variants = set()
+    for seed in range(6):
+        pet = settled_pet(snap, seed)
+        pet.request("yarn")
+        names, _ = run(pet, snap, 30)
+        if "string_leap" in names:
+            order = ["string_leap", "yarn_sit_bat", "yarn_unroll", "yarn_follow", "yarn_bat_away"]
+            idx = [names.index(n) for n in order]
+            assert idx == sorted(idx)
+            variants.add("ficelle")
+        if "yarn_roll_in" in names:
+            variants.add("roule")
+    assert variants == {"ficelle", "roule"}

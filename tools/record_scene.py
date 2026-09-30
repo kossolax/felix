@@ -27,7 +27,7 @@ from felix.render.sprites import SpriteBank  # noqa: E402
 
 DT = 1 / 30
 WORLD = WorldSnapshot(monitors=(Monitor(Rect(0, 0, 1280, 720), Rect(0, 0, 1280, 720)),))
-CROP = (220, 170)  # autour des pieds de départ
+CROP = (240, 260)  # autour des pieds de départ (assez haut pour les bonds)
 
 
 def main():

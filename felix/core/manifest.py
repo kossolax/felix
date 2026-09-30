@@ -105,14 +105,18 @@ def _compose(name, spec, anims, scale):
         raise ValueError(f"{name} : animation {exc} inconnue") from exc
     fps = spec.get("fps", base.fps)
     loop = spec.get("loop", False)
-    count = math.lcm(_ticks(base, fps), _ticks(under, fps)) if loop else _ticks(under, fps)
+    if loop:
+        count = math.lcm(_ticks(base, fps), _ticks(under, fps))
+    else:  # animation unique : sa durée suit `under` (par défaut) ou `base`
+        count = _ticks(base if c.get("length") == "base" else under, fps)
     layer_frames = list(reversed(under.frames)) if c.get("reverse") else list(under.frames)
     at = (c["at"][0] * scale, c["at"][1] * scale)
     frames = []
     for i in range(count):
         b = base.frames[int(i * base.fps / fps) % len(base.frames)]
-        u = layer_frames[min(int(i * under.fps / fps), len(layer_frames) - 1) if not loop
-                         else int(i * under.fps / fps) % len(layer_frames)]
+        k = int(i * under.fps / fps)
+        u = layer_frames[k % len(layer_frames) if loop or under.loop else min(k, len(layer_frames) - 1)]
         frames.append(Frame(b.sheet, b.rect, b.anchor, under=((u.sheet, u.rect, at),)))
+    shift = (spec["exit"][0] * scale - frames[-1].anchor[0], 0) if "exit" in spec else (0, 0)
     return Animation(name=name, sheet=base.sheet, frames=tuple(frames), fps=fps, loop=loop,
-                     facing=spec.get("facing", base.facing))
+                     facing=spec.get("facing", base.facing), shift=shift)

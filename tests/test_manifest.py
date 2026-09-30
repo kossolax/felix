@@ -115,3 +115,12 @@ def test_frame_bounds_include_the_layers():
     from felix.core.anim import frame_bounds
     a = load_manifest(compose_data(), {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
     assert frame_bounds(a.frames[0]) == (0, -44, 70, 10)  # cellule 10×10 + télé 10×10 en (60, -44)
+
+
+def test_compose_can_follow_the_base_length_and_shift_at_the_end():
+    data = compose_data(loop=False)
+    data["animations"]["watch"]["compose"]["length"] = "base"
+    data["animations"]["watch"]["exit"] = [9, 9]
+    a = load_manifest(data, {1: (20, 10), 2: (30, 10)}, bbox_all)["watch"]
+    assert len(a.frames) == 2  # la durée du chat, la télé suit
+    assert a.shift == (4, 0)  # sortie 9 − ancre 5

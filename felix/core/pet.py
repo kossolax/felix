@@ -725,10 +725,15 @@ class Pet:
         yield Play("tv_leave")
 
     def _do_yarn(self):
+        """La pelote arrive en roulant, ou pend au bout de sa ficelle et le chat bondit l'attraper."""
         yield from self._make_room(*YARN_ROOM)
         yield from self._face("right")
-        yield Play("sit_down")
-        for name in ("yarn_roll_in", "yarn_play", "yarn_unroll", "yarn_follow", "yarn_bat_away"):
+        if self.rng.random() < 0.5:
+            yield Play("sit_down")
+            opening = ("yarn_roll_in", "yarn_play")
+        else:
+            opening = ("string_leap", "yarn_sit_bat")
+        for name in (*opening, "yarn_unroll", "yarn_follow", "yarn_bat_away"):
             yield Play(name)
 
     def _climb_target(self, anywhere=False):
