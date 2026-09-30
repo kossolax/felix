@@ -5,7 +5,7 @@ import sys
 import time
 
 from PySide6.QtCore import QElapsedTimer, QObject, QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QCursor, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from felix import __version__, autostart
@@ -13,6 +13,7 @@ from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.core.surfaces import monitor_for
 from felix.render.ball import BallWindow
+from felix.render.held_item import HeldItemWindow
 from felix.render.pet_window import PetWindow
 from felix.render.props import PropManager
 from felix.render.toybox import ToyboxWindow
@@ -26,6 +27,8 @@ UPGRADE_MS = 5000
 SAVE_MS = 60_000
 LEAVE_TIMEOUT = 8.0  # s : on ferme même si le chat n'a pas pu passer sa chatière
 DRAG_THRESHOLD = 6  # px : en dessous, un clic est une caresse
+TREATS_PER_BAG = 3  # friandises par sachet, comme l'original
+TREAT_FROM_BAG = (42, 69)  # px : d'où tombe la friandise, par rapport au curseur qui tient le sachet
 
 
 class FelixApp(QObject):
@@ -58,6 +61,9 @@ class FelixApp(QObject):
         self._snap = None
         self.ball_window = BallWindow(bank, on_grab=self.pet.grab_ball, on_drag=self.pet.drag_ball,
                                       on_throw=self._ball_thrown)
+        self.held = HeldItemWindow(bank, on_click=self._item_clicked, on_cancel=self._item_cancelled)
+        self.treat_windows = []  # friandises tombées (extension Feeding)
+        self.treats_dropped = 0
         self.tray = None
         if QSystemTrayIcon.isSystemTrayAvailable():
             self._make_tray()
@@ -129,6 +135,9 @@ class FelixApp(QObject):
         self.window.set_bank(bank)
         self.toybox.set_bank(bank)
         self.ball_window.set_bank(bank)
+        self.held.bank = bank
+        for window in self.treat_windows:
+            window.set_bank(bank)
         self.pet.set_animations(bank.animations, bank.scale)
 
     def set_toybox(self, visible):
@@ -242,6 +251,8 @@ class FelixApp(QObject):
             log.debug("animation %s", view.animation)
         self.window.show_view(view)
         self._show_ball(view.ball)
+        self._update_held(dt, snap)
+        self._show_treats(view.treats)
         for event in view.events:
             self.dispatch(event)
         if self.overlay is not None:
@@ -253,6 +264,66 @@ class FelixApp(QObject):
         self.ball_window.show_view(ball)
         if self.ball_window.isVisible() and not shown:
             self.window.raise_()  # le chat passe devant sa pelote
+
+    def hold_item(self, kind):
+        """Pâtée, lait ou friandises Felix au bout du curseur (extension Feeding)."""
+        if self.pet.holding is not None or self.held.active:
+            return
+        self.pet.hold_item(kind)
+        if self.pet.holding == kind:
+            self.treats_dropped = 0
+            self._follow_cursor()
+            self.held.hold(kind)
+            self._follow_cursor()
+
+    def _cursor(self):
+        cursor = self._snap.cursor if self._snap is not None else None
+        if cursor is None:
+            pos = QCursor.pos()
+            cursor = (pos.x(), pos.y())
+        return cursor
+
+    def _follow_cursor(self):
+        self.held.follow(*self._cursor())
+
+    def _update_held(self, dt, snap):
+        if self.held.active and self.pet.holding is None:
+            self.held.release()  # le chat n'attend plus (patience épuisée, chute…)
+        if self.held.isVisible():
+            if self.held.active:
+                self._follow_cursor()
+            self.held.tick(dt)
+
+    def _item_clicked(self, x, y):
+        kind = self.pet.holding
+        if kind in ("can", "carton"):
+            self.pet.serve()
+            self.held.release()
+        elif kind == "treats" and not self.held.pouring and self.treats_dropped < TREATS_PER_BAG:
+            self.treats_dropped += 1
+            last = self.treats_dropped == TREATS_PER_BAG
+            k = self.bank.scale
+
+            def drop():
+                cx, cy = self._cursor()
+                self.pet.drop_treat(cx - TREAT_FROM_BAG[0] * k, cy + TREAT_FROM_BAG[1] * k)
+                if last:
+                    self.pet.stop_holding()
+
+            self.held.pour(drop)
+
+    def _item_cancelled(self):
+        self.pet.stop_holding()
+        self.held.release()
+
+    def _show_treats(self, treats):
+        while len(self.treat_windows) < len(treats):
+            self.treat_windows.append(BallWindow(self.bank, on_grab=lambda: None, on_drag=lambda x, y: None,
+                                                 on_throw=lambda vx, vy: None))
+        for window, view in zip(self.treat_windows, treats):
+            window.show_view(view)
+        for window in self.treat_windows[len(treats):]:
+            window.hide()
 
     def dispatch(self, event):
         """Événement du chat : un son (str) ou un accessoire à afficher (tuple)."""
@@ -297,6 +368,10 @@ class FelixApp(QObject):
     def _extension_actions(self):
         """Jeux des extensions de Felix II installées."""
         actions = []
+        if "feeding" in self.bank.extensions:
+            actions.append(("Pâtée Felix", lambda _=False: self.hold_item("can"), None))
+            actions.append(("Lait Felix", lambda _=False: self.hold_item("carton"), None))
+            actions.append(("Friandises Felix", lambda _=False: self.hold_item("treats"), None))
         if "fun" in self.bank.extensions:
             actions.append(("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None))
             actions.append(("Souris mécanique", lambda _=False: self.pet.request("mouse"), None))

@@ -32,6 +32,7 @@ class View:
     hidden: bool = False
     events: tuple = ()  # sons à jouer : meow, purr, crunch, lap…
     ball: BallView = None
+    treats: tuple = ()  # friandises tombées (BallView)
 
 
 def direction_to(hx, hy, cx, cy):

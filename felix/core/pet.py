@@ -9,6 +9,7 @@ import math
 import random
 
 from felix.core.anim import Player
+from felix.core.feeding import FeedingScenes
 from felix.core.fun import FunScenes
 from felix.core.mischief import MischiefScenes
 from felix.core.more_mischief import HIDDEN, MoreMischiefScenes
@@ -43,7 +44,7 @@ MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
 
 
-class Pet(FunScenes, MischiefScenes, MoreMischiefScenes):
+class Pet(FunScenes, FeedingScenes, MischiefScenes, MoreMischiefScenes):
     def __init__(self, animations, rng=None, needs=None, scale=1):
         self.anims = animations
         self.k = scale  # taille du chat : les distances liées à son corps suivent
@@ -53,6 +54,8 @@ class Pet(FunScenes, MischiefScenes, MoreMischiefScenes):
         self._events = []
         self._requests = []
         self.ball = None  # pelote de laine libre, quand elle est sortie
+        self.treats = []  # friandises tombées du sachet (extension Feeding)
+        self._item = self._item_state = None  # objet tenu au bout du curseur pour lui (Feeding)
         self.scene = None  # soin en cours ('feed', 'drink') : pas interrompu par une autre commande
         self.gone = False  # sorti par la chatière (on peut fermer l'appli)
         self.away = False  # parti se promener dehors (invisible)
@@ -254,9 +257,18 @@ class Pet(FunScenes, MischiefScenes, MoreMischiefScenes):
         elif not hidden:
             self._update(dt)
         ball = self._update_ball(dt, snap)
+        treats = self._update_treats(dt, snap)
         events, self._events = tuple(self._events), []
         return View(self.player.animation.name, self.player.frame, self.body.x, self.body.y,
-                    self.mirrored, hidden, events, ball)
+                    self.mirrored, hidden, events, ball, treats)
+
+    def _update_treats(self, dt, snap):
+        views = []
+        for treat in self.treats:
+            treat.update(dt, snap, self.segments)
+            visible = not treat.taken and not self._fullscreen_at(snap, treat.x, treat.y - 1)
+            views.append(BallView(treat.x, treat.y, 0, visible, treat.kind.anim, False))
+        return tuple(views)
 
     def _update_ball(self, dt, snap):
         ball = self.ball

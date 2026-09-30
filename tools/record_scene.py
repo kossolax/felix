@@ -51,11 +51,22 @@ def main():
         pet.update(DT, WORLD)
     if args.x is not None:
         pet.body.x = args.x
-    pet.request(args.scene)
+    served = args.scene in ("can", "carton", "treats")  # objets tenus au curseur (extension Feeding)
+    if served:
+        pet.hold_item(args.scene)
+    else:
+        pet.request(args.scene)
     origin = None
     shots = []
     keep = tuple(filter(None, args.only.split(",")))
     for tick in range(int(args.seconds / DT)):
+        if served and tick == int(3 / DT):  # on sert au bout de 3 s ; le sachet : trois friandises
+            if args.scene == "treats":
+                for dx in (180, -150, 90):
+                    pet.drop_treat(pet.body.x + dx, pet.body.y - 200)
+                pet.stop_holding()
+            else:
+                pet.serve()
         view = pet.update(DT, WORLD)
         if origin is None:
             origin = (round(view.x) - crop[0] // 2, round(view.y) - crop[1] + 30)
@@ -66,6 +77,11 @@ def main():
         painter = QPainter(img)
         wx, wy = ext.window_origin(view)
         ox, oy = ext.frame_offset(view.frame, view.mirrored)
+        for treat in view.treats:
+            if treat.visible:
+                tf = bank.animations[treat.anim].frames[0]
+                painter.drawPixmap(round(treat.x) - tf.anchor[0] - origin[0], round(treat.y) - tf.anchor[1] - origin[1],
+                                   bank.pixmap(tf))
         if view.ball is not None and view.ball.visible:
             bf = bank.animations[view.ball.anim].frames[view.ball.frame]
             painter.drawPixmap(round(view.ball.x) - bf.anchor[0] - origin[0], round(view.ball.y) - bf.anchor[1] - origin[1],

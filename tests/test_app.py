@@ -351,6 +351,7 @@ def test_sprites_are_reloaded_when_extensions_arrive(bank, tmp_path):
 
 def test_the_beach_ball_is_in_the_menu_only_with_its_extension(bank, tmp_path):
     app = make_app(bank, tmp_path)
+    loaded = bank.extensions
     app.bank.extensions = ()
     assert not any(item and item[0] == "Jouer avec le ballon" for item in app.menu_actions())
     app.bank.extensions = ("fun",)
@@ -358,3 +359,4 @@ def test_the_beach_ball_is_in_the_menu_only_with_its_extension(bank, tmp_path):
     action(app, "Souris mécanique")[1](False)
     assert app.pet.scene == "beachball" or "beachball" in app.pet._requests
     assert "mouse" in app.pet._requests
+    app.bank.extensions = loaded
