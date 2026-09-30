@@ -76,6 +76,10 @@ def _slim(binaries, datas):
 
 a = Analysis(["run.py"], datas=datas, hiddenimports=hidden, excludes=excludes)
 a.binaries, a.datas = _slim(a.binaries, a.datas)
+if sys.platform != "win32":
+    # Linux : les bibliothèques du système (libstdc++, glib, X11, PulseAudio…) viennent des paquets de
+    # la distribution, que le .deb déclare en dépendances (dpkg-shlibdeps) ; Python et Qt restent embarqués.
+    a.exclude_system_libraries()
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="felix", console=False, icon="assets/icon/felix.ico")
 coll = COLLECT(exe, a.binaries, a.datas, name="felix")

@@ -49,6 +49,23 @@ jobs:
           $p = Start-Process -FilePath dist\felix\felix.exe -ArgumentList "--selftest" -Wait -PassThru
           Get-Content "$env:LOCALAPPDATA\felix\felix.log" -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+      - name: Installeur Inno Setup (installation silencieuse, selftest, désinstallation)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DVersion=0.0.0" tools\felix.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setup = Get-Item "dist\virtual-felix-0.0.0-windows-x64-setup.exe"
+          "installeur : {0:N1} Mo" -f ($setup.Length / 1MB)
+          $dir = Join-Path $env:RUNNER_TEMP "Virtual Felix"
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$dir`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installation : code $($p.ExitCode)" }
+          $p = Start-Process "$dir\felix.exe" -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:LOCALAPPDATA\felix\felix.log" -Tail 2 -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "selftest de l'appli installée : code $($p.ExitCode)" }
+          Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          for ($i = 0; $i -lt 30 -and (Test-Path "$dir\felix.exe"); $i++) { Start-Sleep 1 }  # le désinstalleur se relance depuis %TEMP%
+          if (Test-Path "$dir\felix.exe") { throw "désinstallation incomplète" }
       - uses: actions/upload-artifact@v4
         with:
           name: felix-windows

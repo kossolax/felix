@@ -8,10 +8,10 @@ Il entre par sa chatière (et sort parfois se promener), se promène sur la barr
 
 Les paquets sont sur la page [Releases](https://github.com/kossolax/felix/releases) :
 
-- **Ubuntu 24.04+** : `virtual-felix_X.Y.Z_amd64.deb`, à installer avec `sudo apt install ./virtual-felix_X.Y.Z_amd64.deb`. On lance ensuite « Virtual Felix » depuis le menu des applications. Sous Wayland, il faut aussi activer l'extension fournie : `gnome-extensions enable felix-helper@kossolax.github.io`, puis se reconnecter.
-- **Windows 10/11** : `virtual-felix-X.Y.Z-windows-x64.zip`. On le dézippe, puis on lance `felix\felix.exe`.
+- **Ubuntu 24.04+ / Debian 13+** : `virtual-felix_X.Y.Z_amd64.deb`, à installer avec `sudo apt install ./virtual-felix_X.Y.Z_amd64.deb` (apt installe aussi les bibliothèques du système dont il a besoin). On lance ensuite « Virtual Felix » depuis le menu des applications. Sous Wayland, il faut aussi activer l'extension fournie : `gnome-extensions enable felix-helper@kossolax.github.io`, puis se reconnecter.
+- **Windows 10/11** : `virtual-felix-X.Y.Z-windows-x64-setup.exe`, un installeur qui ne demande pas de droits d'administrateur (menu Démarrer, désinstallation depuis les paramètres de Windows). Ou la version portable `virtual-felix-X.Y.Z-windows-x64.zip` : on la dézippe, puis on lance `felix\felix.exe`.
 
-Publier une version : `git tag vX.Y.Z && git push origin vX.Y.Z`. Le workflow `release` construit, teste et publie les deux paquets.
+Publier une version : `git tag vX.Y.Z && git push origin vX.Y.Z`. Le workflow `release` construit, teste et publie les paquets : le .deb est installé et lancé sur une Ubuntu vierge, l'installeur Windows installé, lancé puis désinstallé.
 
 ## Graphismes
 
@@ -40,7 +40,7 @@ Pour un lancement manuel : `venv/bin/python -m felix`.
 
 ### Windows 11
 
-Prenez le zip de la dernière release, dézippez-le, puis lancez `felix\felix.exe`. Pour qu'il démarre avec Windows, cochez « Lancer au démarrage » dans son menu. La CI produit aussi un artefact **felix-windows** à chaque push.
+Lancez l'installeur de la dernière release (ou dézippez la version portable et lancez `felix\felix.exe`). Pour qu'il démarre avec Windows, cochez « Lancer au démarrage » dans son menu. La CI produit aussi un artefact **felix-windows** à chaque push.
 
 ## Utilisation
 
@@ -96,7 +96,8 @@ Outils :
 - `tools/record_scene.py` : enregistrement hors écran d'une scène, image par image, en planche contact ;
 - `tools/make_sounds.py` : génération des sons ;
 - `tools/make_icon.py` : dessin de l'icône ;
-- `tools/build_deb.sh` : construction du paquet Debian ;
+- `tools/build_deb.sh` : construction du paquet Debian (dépendances calculées par dpkg-shlibdeps) ;
+- `tools/felix.iss` : installeur Windows (Inno Setup) ;
 - `tools/dev/gnome_x11_xvfb.sh` : GNOME X11 sur un écran virtuel ;
 - `tools/dev/gnome_wayland_headless.sh` : GNOME Wayland isolé, avec l'extension, pour tester sans quitter sa session ;
 - `tools/dev/wayland_screenshot.py` : capture d'écran de ce GNOME Wayland.

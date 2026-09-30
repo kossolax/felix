@@ -22,6 +22,9 @@ jobs:
         run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Version
+        shell: pwsh
+        run: '"FELIX_VERSION=" + "${{ github.ref_name }}".TrimStart("v") >> $env:GITHUB_ENV'
       - name: Build
         run: pyinstaller --noconfirm felix.spec
       - name: Selftest de l'exe
@@ -30,15 +33,32 @@ jobs:
           $p = Start-Process -FilePath dist\felix\felix.exe -ArgumentList "--selftest" -Wait -PassThru
           Get-Content "$env:LOCALAPPDATA\felix\felix.log" -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-      - name: Archive
+      - name: Installeur Inno Setup (installation silencieuse, selftest, désinstallation)
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          Compress-Archive -Path dist\felix -DestinationPath "virtual-felix-$version-windows-x64.zip"
+          choco install innosetup --no-progress -y | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DVersion=$env:FELIX_VERSION" tools\felix.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setup = Get-Item "dist\virtual-felix-$env:FELIX_VERSION-windows-x64-setup.exe"
+          "installeur : {0:N1} Mo" -f ($setup.Length / 1MB)
+          $dir = Join-Path $env:RUNNER_TEMP "Virtual Felix"
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$dir`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installation : code $($p.ExitCode)" }
+          $p = Start-Process "$dir\felix.exe" -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:LOCALAPPDATA\felix\felix.log" -Tail 2 -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "selftest de l'appli installée : code $($p.ExitCode)" }
+          Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          for ($i = 0; $i -lt 30 -and (Test-Path "$dir\felix.exe"); $i++) { Start-Sleep 1 }  # le désinstalleur se relance depuis %TEMP%
+          if (Test-Path "$dir\felix.exe") { throw "désinstallation incomplète" }
+      - name: Archive (version portable)
+        shell: pwsh
+        run: Compress-Archive -Path dist\felix -DestinationPath "dist\virtual-felix-$env:FELIX_VERSION-windows-x64.zip" -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: virtual-felix-*-windows-x64.zip
+          path: |
+            dist/virtual-felix-*-windows-x64-setup.exe
+            dist/virtual-felix-*-windows-x64.zip
 
   deb:
     runs-on: ubuntu-24.04
@@ -53,7 +73,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libxcb-cursor0 libxkbcommon-x11-0 libegl1 libgl1 libdbus-1-3 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
-            libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libpulse0
+            libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libpulse0 dpkg-dev file
       - run: pip install -r requirements.txt pyinstaller
       - name: Tests
         run: python -m pytest -q
@@ -63,10 +83,13 @@ jobs:
         run: |
           pyinstaller --noconfirm felix.spec
           tools/build_deb.sh "${GITHUB_REF_NAME#v}"
-      - name: Installation du paquet et selftest
+      - name: Installation du paquet sur une Ubuntu vierge et selftest
         run: |
-          sudo apt-get install -y ./dist/virtual-felix_*_amd64.deb
-          QT_QPA_PLATFORM=offscreen virtual-felix --selftest
+          ls -la dist/*.deb
+          docker run --rm -v "$PWD/dist:/dist:ro" ubuntu:24.04 bash -euc '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq /dist/virtual-felix_*_amd64.deb > /dev/null
+            QT_QPA_PLATFORM=offscreen virtual-felix --selftest'
       - uses: actions/upload-artifact@v4
         with:
           name: deb
@@ -87,10 +110,11 @@ jobs:
           cat > notes.md <<EOF
           ## Virtual Felix $version
 
-          - **Ubuntu 24.04+ / Debian** : \`virtual-felix_${version}_amd64.deb\` → \`sudo apt install ./virtual-felix_${version}_amd64.deb\`, puis « Virtual Felix » dans le menu.
+          - **Ubuntu 24.04+ / Debian 13+** : \`virtual-felix_${version}_amd64.deb\` → \`sudo apt install ./virtual-felix_${version}_amd64.deb\`, puis « Virtual Felix » dans le menu.
             Sous **Wayland** (session par défaut d'Ubuntu), activez l'extension fournie pour que le chat voie les fenêtres :
             \`gnome-extensions enable felix-helper@kossolax.github.io\`, puis déconnexion / reconnexion.
-          - **Windows 10/11** : \`virtual-felix-${version}-windows-x64.zip\` → dézipper, lancer \`felix\\felix.exe\`.
+          - **Windows 10/11** : \`virtual-felix-${version}-windows-x64-setup.exe\` (installeur, sans droits d'administrateur),
+            ou \`virtual-felix-${version}-windows-x64.zip\` (version portable : dézipper, lancer \`felix\\felix.exe\`).
 
           Tout est inclus : le jeu d'origine et ses 5 extensions de 2001-2002, rien à télécharger au premier lancement.
           Graphismes d'origine : AdTools et OgilvyOne Interactive pour Friskies Europe (Nestlé), voir

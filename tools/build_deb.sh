@@ -33,6 +33,18 @@ Icon=virtual-felix
 Categories=Game;Amusement;
 EOF
 
+# Dépendances : les bibliothèques du système que l'appli charge (dpkg-shlibdeps), sauf Python, Qt et
+# ICU, embarqués dans /opt/virtual-felix (dpkg-shlibdeps les attribuerait au Qt du système).
+APP="$ROOT/$PKG/opt/virtual-felix"
+SHLIBS="$ROOT/build/deb/shlibs"
+mkdir -p "$SHLIBS/debian" && touch "$SHLIBS/debian/control"
+mapfile -t ELF < <(find "$APP" -type f -exec sh -c 'file -b "$1" | grep -q "^ELF" && echo "$1"' _ {} \;)
+DEPENDS=$(cd "$SHLIBS" && dpkg-shlibdeps -O --ignore-missing-info -l"$APP/_internal" -l"$APP/_internal/PySide6/Qt/lib" \
+    -l"$APP/_internal/PySide6" -l"$APP/_internal/shiboken6" "${ELF[@]}" 2>/dev/null \
+    | sed -n 's/^shlibs:Depends=//p' | tr ',' '\n' | sed 's/^ *//' | grep -Ev '^(libqt6|qt6-|libicu|libpython)' \
+    | paste -sd, - | sed 's/,/, /g')
+[ -n "$DEPENDS" ] || { echo "dépendances introuvables (dpkg-shlibdeps)" >&2; exit 1; }
+
 cat > "$PKG/DEBIAN/control" <<EOF
 Package: virtual-felix
 Version: $VERSION
@@ -41,9 +53,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: kossolax <kossolax@users.noreply.github.com>
 Installed-Size: $(du -sk "$PKG" | cut -f1)
-Depends: libxcb-cursor0, libxkbcommon-x11-0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0,
- libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1, libegl1, libgl1, libfontconfig1, libdbus-1-3,
- libpulse0
+Depends: $DEPENDS
 Homepage: https://github.com/kossolax/felix
 Description: Virtual Felix, le chat de bureau
  Remake du ScreenMate Felix II (Felix, 1999-2000) : le chat marche sur
@@ -65,4 +75,4 @@ done
 chmod -R u=rwX,go=rX "$PKG"
 chmod 0755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/postrm" "$PKG/opt/virtual-felix/felix"
 mkdir -p dist
-dpkg-deb --build --root-owner-group "$PKG" "dist/virtual-felix_${VERSION}_amd64.deb"
+dpkg-deb -Zxz -z9 --build --root-owner-group "$PKG" "dist/virtual-felix_${VERSION}_amd64.deb"  # xz : ~30 % de moins que zstd
