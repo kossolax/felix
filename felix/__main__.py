@@ -65,10 +65,14 @@ def selftest(felix):
     pet.grab(pet.body.x, pet.body.y)
     pet.drag(pet.body.x, pet.body.y - 300)
     pet.release()
-    for _ in range(120):
+    landed = False
+    for _ in range(120):  # il doit retomber sur ses pattes ; ce qu'il fait ensuite (grimper…) ne compte pas
         felix.tick(1 / 30)
+        if pet.mode == "script" and pet.body.grounded:
+            landed = True
+            break
     log = logging.getLogger("felix")
-    if not pet.body.grounded:
+    if not landed:
         from felix.platform.fake import scene_to_dict
         world = json.dumps(scene_to_dict(felix.backend.snapshot()))
         log.error("selftest : le chat n'a pas atterri (%s, scène %s, dehors %s, en (%.0f, %.0f) ; monde %s)",
