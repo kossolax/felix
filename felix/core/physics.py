@@ -31,7 +31,8 @@ def _land(body, seg, snap):
     body.owner_rect = win.rect if win else None
 
 
-def _keep_support(body, snap, segs):
+def follow_support(body, snap, segs):
+    """Suit la surface porteuse (fenêtre déplacée) ; support=None si elle a disparu."""
     owner = body.support.owner
     if owner is None:
         floor = next((s for s in segs if s.owner is None and s.spans(body.x) and abs(s.y - body.y) < 64), None)
@@ -52,7 +53,7 @@ def _keep_support(body, snap, segs):
 
 def step(body, dt, snap, segs):
     if body.support is not None:
-        _keep_support(body, snap, segs)
+        follow_support(body, snap, segs)
         if body.support is not None:
             return
     body.vy = min(body.vy + GRAVITY * dt, MAX_FALL_SPEED)

@@ -80,3 +80,20 @@ def test_plain_and_layered_versions_of_a_cell_are_cached_separately(qapp):
     assert bank.pixmap(layered).height() == 12
     assert bank.pixmap(plain).height() == 10  # pas la version avec télé
     assert bank.mask(plain).boundingRect().height() == 10
+
+
+@pytest.mark.parametrize("scale", [1, 2])
+def test_manifest_can_erase_part_of_a_sheet(qapp, tmp_path, scale):
+    import json
+    sheet = QImage(20, 10, QImage.Format.Format_ARGB32)
+    sheet.fill(QColor(255, 255, 255, 255))
+    sheet.save(str(tmp_path / "fig_7.png"))
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps({"sheets": {"7": [2, 1]}, "erase": {"7": [[13, 2, 5, 8]]},
+                                    "animations": {"a": {"sheet": 7, "frames": "0-1"}}}))
+    bank = SpriteBank.load(manifest, tmp_path, scale=scale)
+    img = bank.sheets[7]
+    assert img.pixelColor(13 * scale, 2 * scale).alpha() == 0
+    assert img.pixelColor(18 * scale - 1, 10 * scale - 1).alpha() == 0
+    assert img.pixelColor(12 * scale, 2 * scale).alpha() == 255
+    assert img.pixelColor(13 * scale, 2 * scale - 1).alpha() == 255

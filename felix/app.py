@@ -12,6 +12,7 @@ from felix import __version__, autostart
 from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.core.surfaces import monitor_for
+from felix.render.ball import BallWindow
 from felix.render.pet_window import PetWindow
 from felix.render.props import PropManager
 from felix.render.toybox import ToyboxWindow
@@ -59,7 +60,8 @@ class FelixApp(QObject):
                                    on_moved=self._toybox_dropped)
         self._toybox_on = self.settings.value("toybox/visible", False) in (True, "true")
         self._snap = None
-        self._toybox_game = False  # partie lancée depuis la boîte : elle reste ouverte jusqu'à la fin
+        self.ball_window = BallWindow(bank, on_grab=self.pet.grab_ball, on_drag=self.pet.drag_ball,
+                                      on_throw=self._ball_thrown)
         self.tray = None
         if QSystemTrayIcon.isSystemTrayAvailable():
             self._make_tray()
@@ -122,6 +124,7 @@ class FelixApp(QObject):
         self.props.bank = self.bank
         self.window.set_bank(self.bank)
         self.toybox.set_bank(self.bank)
+        self.ball_window.set_bank(self.bank)
         self.pet.set_animations(self.bank.animations, scale)
 
     def set_toybox(self, visible):
@@ -129,10 +132,22 @@ class FelixApp(QObject):
         self.settings.setValue("toybox/visible", visible)
         if not visible:
             self.toybox.hide()
+            if self.pet.ball is not None and self.pet.ball.home == "box":
+                self.pet.put_ball_away()
 
     def _play_from_toybox(self, x):
-        self._toybox_game = True
-        self.pet.request("toybox_yarn", near=x)  # la pelote sortira de la boîte
+        """La pelote bondit hors de la boîte, vers le chat."""
+        self.pet.toss_ball(x, self.toybox.floor_y - self.toybox.height() * 0.6, home="box")
+
+    def _ball_thrown(self, vx, vy):
+        """Pelote lâchée à la souris : rangée si on la pose sur sa boîte, sinon lancée."""
+        ball = self.pet.ball
+        box = self.toybox
+        if (ball is not None and ball.home == "box" and box.isVisible()
+                and box.x() <= ball.x < box.x() + box.width() and box.y() - 20 <= ball.y <= box.y() + box.height()):
+            self.pet.put_ball_away()
+            return
+        self.pet.throw_ball(vx, vy)
 
     def _toybox_home(self, snap):
         """Position enregistrée (x, sol), ou par défaut aux trois quarts du premier écran."""
@@ -164,9 +179,7 @@ class FelixApp(QObject):
     def _update_toybox(self, snap):
         if not self._toybox_on or not snap.monitors:
             return
-        if self._toybox_game and self.pet.scene is None and "toybox_yarn" not in self.pet._requests:
-            self._toybox_game = False
-        self.toybox.set_open(self._toybox_game)
+        self.toybox.set_open(self.pet.ball is not None and self.pet.ball.home == "box")  # ouverte tant que sa pelote est dehors
         if self.toybox.dragging:
             return  # pendant un glisser, la boîte suit le pointeur et rien d'autre
         # sa place enregistrée si son écran est là, sinon l'écran le plus proche (sans l'enregistrer :
@@ -226,11 +239,18 @@ class FelixApp(QObject):
             self._last_animation = view.animation
             log.debug("animation %s", view.animation)
         self.window.show_view(view)
+        self._show_ball(view.ball)
         for event in view.events:
             self.dispatch(event)
         if self.overlay is not None:
             self.overlay.set_state(snap, self.pet)
         return view
+
+    def _show_ball(self, ball):
+        shown = self.ball_window.isVisible()
+        self.ball_window.show_view(ball)
+        if self.ball_window.isVisible() and not shown:
+            self.window.raise_()  # le chat passe devant sa pelote
 
     def dispatch(self, event):
         """Événement du chat : un son (str) ou un accessoire à afficher (tuple)."""
@@ -324,5 +344,6 @@ class FelixApp(QObject):
         if self.tray is not None:
             self.tray.hide()
         self.toybox.hide()
+        self.ball_window.hide()
         self.backend.stop()
         QApplication.quit()

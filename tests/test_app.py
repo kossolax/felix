@@ -167,20 +167,68 @@ def test_toybox_can_be_shown_from_the_menu_and_is_remembered(bank, tmp_path):
     assert again.toybox.isVisible() and again.toybox.center_x == app.toybox.center_x
 
 
-def test_playing_from_the_toybox_opens_it_until_the_game_ends(bank, tmp_path):
+def settled_app(bank, tmp_path, box=True):
     app = make_app(bank, tmp_path)
     for _ in range(120):
         app.tick(1 / 30)
-    action(app, "Boîte à jouets")[1](True)
-    app.toybox.on_play(app.toybox.center_x)
-    app.tick(1 / 30)
-    assert app.pet.scene == "toybox_yarn" and app.toybox._open
-    for _ in range(int(60 * 30)):
+    if box:
+        action(app, "Boîte à jouets")[1](True)
         app.tick(1 / 30)
-        if app.pet.scene is None:
+    return app
+
+
+def test_playing_from_the_toybox_pops_the_ball_out_until_the_game_ends(bank, tmp_path):
+    app = settled_app(bank, tmp_path)
+    app.toybox.on_play(app.toybox.center_x)
+    ball = app.pet.ball
+    assert ball is not None and ball.home == "box"
+    assert abs(ball.x - app.toybox.center_x) < app.toybox.width() // 2 and ball.y < app.toybox.floor_y
+    app.tick(1 / 30)
+    assert app.toybox._open and app.ball_window.isVisible()
+    for _ in range(int(150 * 30)):
+        app.tick(1 / 30)
+        if app.pet.ball is None and app.pet.scene is None:
             break
     app.tick(1 / 30)
-    assert not app.toybox._open
+    assert app.pet.ball is None and not app.toybox._open and not app.ball_window.isVisible()
+
+
+def test_putting_the_toybox_away_puts_its_ball_away_too(bank, tmp_path):
+    app = settled_app(bank, tmp_path)
+    app.toybox.on_play(app.toybox.center_x)
+    app.tick(1 / 30)
+    action(app, "Boîte à jouets")[1](False)
+    app.tick(1 / 30)
+    assert app.pet.ball is None and not app.ball_window.isVisible()
+
+
+def test_the_ball_can_be_thrown_with_the_mouse(bank, tmp_path):
+    app = settled_app(bank, tmp_path, box=False)
+    action(app, "Jouer avec la pelote")[1](False)
+    for _ in range(int(20 * 30)):
+        app.tick(1 / 30)
+        if app.pet.ball is not None and app.pet.ball.resting and app.ball_window.isVisible():
+            break
+    win, ball = app.ball_window, app.pet.ball
+    win.grab_at(ball.x, ball.y - 10, 0.0)
+    assert ball.held
+    win.drag_to(ball.x + 50, 700, 0.05)
+    win.drag_to(ball.x + 100, 650, 0.1)
+    win.release(0.1)
+    assert not ball.held and ball.vx > 0 and ball.vy < 0
+
+
+def test_dropping_the_ball_on_its_box_puts_it_away(bank, tmp_path):
+    app = settled_app(bank, tmp_path)
+    app.toybox.on_play(app.toybox.center_x)
+    for _ in range(int(3 * 30)):
+        app.tick(1 / 30)
+    win, box = app.ball_window, app.toybox
+    win.grab_at(app.pet.ball.x, app.pet.ball.y - 10, 0.0)
+    win.drag_to(box.center_x, box.y() + 5, 1.0)
+    win.release(2.0)
+    app.tick(1 / 30)
+    assert app.pet.ball is None and not app.toybox._open
 
 
 def two_screens(side_by_side=True):

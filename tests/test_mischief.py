@@ -74,24 +74,13 @@ def test_fishbowl_scene():
     assert "fishbowl" in names
 
 
-def test_yarn_scene_plays_in_order_and_needs_room():
-    snap = world()
-    pet = settled_pet(snap)
-    pet.body.x = 1880  # collé au bord droit : la pelote roule vers la droite
-    pet.request("yarn")
-    names, _ = run(pet, snap, 40)
-    order = ["yarn_roll_in", "yarn_play", "yarn_unroll", "yarn_follow", "yarn_bat_away"]
-    assert [names.index(n) for n in order] == sorted(names.index(n) for n in order)
-    assert pet.body.grounded
-
-
 def test_mischief_happens_on_its_own():
     snap = world(WinRect(9, Rect(500, 250, 900, 600)))
     seen = set()
     for seed in range(3):
         pet = settled_pet(snap, seed)
         names, _ = run(pet, snap, 240)
-        seen.update(n for n in names if n in ("paw_prints", "fishbowl", "climb", "tv_watch", "yarn_play"))
+        seen.update(n for n in names if n in ("paw_prints", "fishbowl", "climb", "tv_watch", "yarn_pat"))
     assert len(seen) >= 2
 
 
@@ -170,76 +159,3 @@ def test_a_request_brings_the_cat_back_early():
     pet.request("feed")
     names, _ = run(pet, snap, 6)
     assert "enter_flap" in names and "cupboard_enter" in names
-
-
-def test_yarn_sometimes_dangles_on_its_string_and_the_cat_leaps_for_it():
-    snap = world()
-    variants = set()
-    for seed in range(6):
-        pet = settled_pet(snap, seed)
-        pet.request("yarn")
-        names, _ = run(pet, snap, 30)
-        if "string_leap" in names:
-            order = ["string_leap", "yarn_sit_bat", "yarn_unroll", "yarn_follow", "yarn_bat_away"]
-            idx = [names.index(n) for n in order]
-            assert idx == sorted(idx)
-            variants.add("ficelle")
-        if "yarn_roll_in" in names:
-            variants.add("roule")
-    assert variants == {"ficelle", "roule"}
-
-
-def test_a_request_can_ask_the_cat_to_play_near_a_spot():
-    snap = world()
-    pet = settled_pet(snap)
-    pet.body.x = 300
-    pet.request("yarn", near=1500)
-    for _ in range(int(40 / DT)):
-        view = pet.update(DT, snap)
-        if view.animation in ("yarn_roll_in", "string_leap"):
-            break
-    assert abs(pet.body.x - 1500) < 260
-
-
-def test_toybox_game_puts_the_cat_left_of_the_box_so_the_ball_pops_out_of_it():
-    from felix.core.pet import TOYBOX_BALL_OFFSET
-    snap = world()
-    pet = settled_pet(snap)
-    pet.body.x = 1600  # à droite de la boîte : il passe devant elle
-    pet.request("toybox_yarn", near=1200)
-    names = []
-    for _ in range(int(40 / DT)):
-        view = pet.update(DT, snap)
-        names.append(view.animation)
-        if view.animation == "yarn_roll_in" and names.count("yarn_roll_in") == 1:
-            assert pet.body.x == 1200 - TOYBOX_BALL_OFFSET and pet.facing == "right"
-    order = ["yarn_roll_in", "yarn_play", "yarn_sit_bat"]
-    idx = [names.index(n) for n in order]
-    assert idx == sorted(idx)
-    assert not {"yarn_unroll", "yarn_follow", "yarn_bat_away", "string_leap"} & set(names[:max(idx) + 1])
-
-
-def test_toybox_near_the_left_edge_puts_the_cat_on_its_right_mirrored():
-    from felix.core.pet import TOYBOX_BALL_OFFSET
-    snap = world()
-    pet = settled_pet(snap)
-    pet.request("toybox_yarn", near=120)  # pas la place à gauche de la boîte
-    seen = False
-    for _ in range(int(40 / DT)):
-        view = pet.update(DT, snap)
-        if view.animation == "yarn_roll_in":
-            assert pet.body.x == 120 + TOYBOX_BALL_OFFSET and view.mirrored
-            seen = True
-            break
-    assert seen
-
-
-def test_toybox_game_lasts_a_while_before_the_ball_goes_back():
-    snap = world()
-    for seed in range(4):
-        pet = settled_pet(snap, seed)
-        pet.request("toybox_yarn", near=1200)
-        names, _ = run(pet, snap, 40)
-        rounds = sum(1 for a, b in zip(names, names[1:]) if b == "yarn_play" and a != "yarn_play")
-        playing = names.count("yarn_play") * DT
-        assert rounds >= 1 and playing >= 7.0, (seed, playing)
