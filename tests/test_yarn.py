@@ -3,7 +3,8 @@ import random
 
 from felix.core.ball import Ball
 from felix.core.needs import Needs
-from felix.core.pet import BALL_AT_FEET, BALL_CATCH, BAT_FROM, Pet
+from felix.core.pet import Pet
+from felix.core.tuning import BALL_AT_FEET, BALL_CATCH, BAT_FROM
 from felix.core.surfaces import compute_surfaces
 from felix.core.world import Monitor, Rect, WinRect, WorldSnapshot
 from tests.anim_helpers import make_anims

@@ -2,7 +2,8 @@ import random
 
 import pytest
 
-from felix.core.pet import Pet, direction_to
+from felix.core.actions import direction_to
+from felix.core.pet import Pet
 from felix.core.world import Monitor, Rect, WorldSnapshot
 from tests.anim_helpers import make_anims
 
