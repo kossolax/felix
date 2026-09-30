@@ -10,7 +10,8 @@ from felix.core.physics import step
 from felix.core.tuning import FROG_HOP, FROG_HOP_FPS
 
 FROG = BallKind("frog_sit_right", 20, 1, 0.0, 0.0, 0, None, grabbable=False)
-SIT_FPS = 3
+SIT_FPS = 10
+SIT_FRAMES = 10  # clignements : liste d'images de frog_sit_*
 
 
 class Frog:
@@ -55,7 +56,7 @@ class Frog:
     def frame(self):
         if self.hopping:
             return min(int(self._hop_t * FROG_HOP_FPS), len(FROG_HOP) - 1)
-        return int(self._sit_t * SIT_FPS) % 3
+        return int(self._sit_t * SIT_FPS) % SIT_FRAMES
 
     def hop(self, count, heading=None, pause=(0.0, 0.0)):
         """`count` sauts vers `heading` (sa direction actuelle par défaut), posée `pause` s entre deux."""

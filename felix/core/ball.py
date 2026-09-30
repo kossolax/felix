@@ -38,7 +38,7 @@ class BallKind:
 
 YARN = BallKind("yarn_ball", BALL_RADIUS, ROLL_STEP, BALL_FRICTION, BALL_BOUNCE, 38, "yarn")
 BEACH = BallKind("beach_ball", 32, 50, 60.0, 0.6, 56, "beachball")  # extension Fun and Games
-MOUSE = BallKind("mouse_walk_right", 27, 6, 0.0, 0.0, 0, None, frames=7, anim_left="mouse_walk_left",
+MOUSE = BallKind("mouse_walk_right", 27, 6, 0.0, 0.0, 0, None, frames=6, anim_left="mouse_walk_left",
                  grabbable=False, speed=60.0)  # souris mécanique : elle marche droit devant elle, la clé tourne
 
 

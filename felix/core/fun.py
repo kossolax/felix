@@ -58,6 +58,7 @@ class FunScenes:
         if self.rng.random() < 0.7:
             yield Play("beach_sit", duration=self.rng.uniform(*BEACH_REST), mirrored=mirrored)
         yield Bat(side, self.rng.uniform(*BEACH_SPEED) * self.k, 0, name="beach_pat")
+        yield Play("beach_watch", mirrored=mirrored)  # il le regarde rouler
         yield Play("sit_up", mirrored=mirrored)
 
     def _meet_toy(self, walk):

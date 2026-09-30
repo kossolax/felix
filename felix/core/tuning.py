@@ -39,7 +39,7 @@ BAT_FROM = 44  # … et celle de la 2e image de yarn_bat, d'où la vraie pelote 
 BAKED_BALL = frozenset({"yarn_sniff", "yarn_pat", "yarn_unroll", "yarn_follow", "yarn_bat_away",
                         "beach_sit", "mouse_near", "mouse_pounce", "mouse_play",
                         "mouse_upright"})  # balle (ou jouet) dessinée par les images du chat
-BEACH_LAUNCH = (5, 65)  # ballon : il quitte la patte à la 6e image de beach_pat, à 65 px des pieds
+BEACH_LAUNCH = (3, 65)  # ballon : il quitte la patte à la 4e image de beach_pat, à 65 px des pieds
 MOUSE_SPEED = 60  # px/s : la souris mécanique avance de 6 px par image, comme dessinée
 MOUSE_NEAR = 107  # px : où les images du chat (511) la dessinent quand elle arrive
 MOUSE_FROM = 137  # … et d'où elle repart (514, 14e image)
@@ -78,8 +78,8 @@ EDGE_JUMP_CHANCE = 0.5  # après avoir regardé en bas, il saute (sinon il recul
 EDGE_MIN_DROP = 40  # px : il ne saute que vers une surface au moins aussi bas
 EDGE_LAND = (80, 220)  # px au-delà du bord où il retombe
 OUTING_ROOM = (30, 110)
-FROG_HOP = (0, 18, 36, 52, 60, 60)  # px parcourus à chaque image du saut (les planches sautent sur place)
-FROG_HOP_FPS = 12
+FROG_HOP = (0, 20, 40, 55, 60)  # px parcourus à chaque image du saut (les planches sautent sur place)
+FROG_HOP_FPS = 10
 FROG_APPROACH_PAUSE = (0.3, 0.9)  # s posée entre deux sauts, quand elle arrive
 FROG_WALK = (450, 600)  # px qu'elle parcourt pour venir jusqu'au chat
 FROG_NEAR = 220  # px : à cette distance, il se met à l'affût
