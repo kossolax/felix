@@ -54,7 +54,7 @@ Prenez le zip de la dernière release, dézippez-le, puis lancez `felix\felix.ex
 |---|---|
 | clic gauche sur le chat | caresse : il s'assoit et ronronne |
 | glisser le chat | on l'attrape ; relâché en l'air, il tombe (et prend peur si c'est haut) |
-| clic droit sur le chat | menu : Nourrir, Donner du lait, Jouer avec la pelote, Regarder la télé, Regarder le poisson rouge, (avec les extensions) Montrer / Cacher le chaton, Pâtée Felix, Lait Felix, Friandises Felix, Jouer avec le ballon, Souris mécanique, Grenouille, jauges faim/soif, Rester immobile, Sons, Boîte à jouets, Lancer au démarrage, À propos, Quitter (le chat sort par sa chatière) |
+| clic droit sur le chat | menu : À manger ▸ (Nourrir, Donner du lait, et avec l'extension : Pâtée, Lait et Friandises Felix), Jouer ▸ (pelote, et avec l'extension : ballon, souris mécanique, grenouille ; télé, poisson rouge), Montrer / Cacher le chaton (extension), jauges faim/soif, Rester immobile, Sons, Boîte à jouets, Lancer au démarrage, À propos, Quitter (le chat sort par sa chatière) |
 | boîte à jouets | glisser pour la déplacer ; clic droit : Jouer avec la pelote (elle bondit hors de la boîte), Ranger la boîte à jouets |
 | pelote | glisser puis lâcher pour la lancer (le chat court après) ; la poser sur sa boîte pour la ranger |
 

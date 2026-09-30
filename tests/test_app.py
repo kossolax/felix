@@ -147,7 +147,9 @@ def test_tray_menu_mirrors_the_cat_menu(bank, tmp_path):
     menu = QMenu()
     app.fill_menu(menu)
     labels = [a.text() for a in menu.actions() if not a.isSeparator()]
-    assert labels[:2] == ["Nourrir", "Donner du lait"] and labels[-1] == "Quitter"
+    assert labels[:2] == ["À manger", "Jouer"] and labels[-1] == "Quitter"
+    food = menu.actions()[0].menu()
+    assert [a.text() for a in food.actions()][:2] == ["Nourrir", "Donner du lait"]
 
 
 def test_speed_scales_time_for_tests(bank, tmp_path):
@@ -360,3 +362,15 @@ def test_the_beach_ball_is_in_the_menu_only_with_its_extension(bank, tmp_path):
     assert app.pet.scene == "beachball" or "beachball" in app.pet._requests
     assert "mouse" in app.pet._requests
     app.bank.extensions = loaded
+
+
+def test_food_and_games_are_grouped_in_submenus(bank, tmp_path):
+    app = make_app(bank, tmp_path)
+    tree = {item[0]: item[1] for item in app.menu_tree() if item and isinstance(item[1], list)}
+    food = [entry[0] for entry in tree["À manger"] if entry]
+    games = [entry[0] for entry in tree["Jouer"] if entry]
+    assert "Nourrir" in food and "Donner du lait" in food
+    assert "Jouer avec la pelote" in games and "Regarder la télé" in games
+    top = [item[0] for item in app.menu_tree() if item]
+    assert "Nourrir" not in top and "Quitter" in top
+    assert action(app, "Nourrir")  # toujours accessible à plat (tests, raccourcis)

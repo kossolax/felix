@@ -351,17 +351,38 @@ class FelixApp(QObject):
             self.overlay.close()
             self.overlay = None
 
-    def menu_actions(self):
-        """(libellé, rappel, coché ou None) — partagé par le menu clic droit et le tray."""
+    def menu_tree(self):
+        """Menu clic droit et tray : (libellé, rappel, coché ou None), (libellé, [sous-menu]) ou None."""
         needs = self.pet.needs
         status = f"Faim {round(needs.hunger * 100)} % · Soif {round(needs.thirst * 100)} %"
-        return [
+        ext = self.bank.extensions
+        food = [
             ("Nourrir", lambda _=False: self.pet.request("feed"), None),
             ("Donner du lait", lambda _=False: self.pet.request("drink"), None),
-            ("Jouer avec la pelote", lambda _=False: self.pet.request("yarn"), None),
-            ("Regarder la télé", lambda _=False: self.pet.request("tv"), None),
-            ("Regarder le poisson rouge", lambda _=False: self.pet.request("fishbowl"), None),
-            *self._extension_actions(),
+        ]
+        if "feeding" in ext:
+            food += [None,
+                     ("Pâtée Felix", lambda _=False: self.hold_item("can"), None),
+                     ("Lait Felix", lambda _=False: self.hold_item("carton"), None),
+                     ("Friandises Felix", lambda _=False: self.hold_item("treats"), None)]
+        games = [("Jouer avec la pelote", lambda _=False: self.pet.request("yarn"), None)]
+        if "fun" in ext:
+            games += [("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None),
+                      ("Souris mécanique", lambda _=False: self.pet.request("mouse"), None),
+                      ("Grenouille", lambda _=False: self.pet.request("frog"), None)]
+        games += [None,
+                  ("Regarder la télé", lambda _=False: self.pet.request("tv"), None),
+                  ("Regarder le poisson rouge", lambda _=False: self.pet.request("fishbowl"), None)]
+        kitten = []
+        if "kitten" in ext:
+            if self.pet.kitten is None:
+                kitten = [("Montrer le chaton", lambda _=False: self.pet.show_kitten(), None)]
+            else:
+                kitten = [("Cacher le chaton", lambda _=False: self.pet.hide_kitten(), None)]
+        return [
+            ("À manger", food),
+            ("Jouer", games),
+            *kitten,
             (status, None, None),
             None,
             ("Rester immobile", lambda on: setattr(self.pet, "still", on), self.pet.still),
@@ -375,23 +396,15 @@ class FelixApp(QObject):
             ("Quitter", lambda _=False: self.request_quit(), None),
         ]
 
-    def _extension_actions(self):
-        """Jeux des extensions de Felix II installées."""
-        actions = []
-        if "feeding" in self.bank.extensions:
-            actions.append(("Pâtée Felix", lambda _=False: self.hold_item("can"), None))
-            actions.append(("Lait Felix", lambda _=False: self.hold_item("carton"), None))
-            actions.append(("Friandises Felix", lambda _=False: self.hold_item("treats"), None))
-        if "kitten" in self.bank.extensions:
-            if self.pet.kitten is None:
-                actions.append(("Montrer le chaton", lambda _=False: self.pet.show_kitten(), None))
+    def menu_actions(self):
+        """Le menu à plat (sous-menus dépliés) : (libellé, rappel, coché ou None) ou None."""
+        flat = []
+        for item in self.menu_tree():
+            if item is not None and isinstance(item[1], list):
+                flat.extend(item[1])
             else:
-                actions.append(("Cacher le chaton", lambda _=False: self.pet.hide_kitten(), None))
-        if "fun" in self.bank.extensions:
-            actions.append(("Jouer avec le ballon", lambda _=False: self.pet.request("beachball"), None))
-            actions.append(("Souris mécanique", lambda _=False: self.pet.request("mouse"), None))
-            actions.append(("Grenouille", lambda _=False: self.pet.request("frog"), None))
-        return actions
+                flat.append(item)
+        return flat
 
     def _make_tray(self):
         walk = self.bank.animations["sit_front"].frames[0]
@@ -415,11 +428,14 @@ class FelixApp(QObject):
     def show_about(self):
         QMessageBox.about(None, "À propos de Virtual Felix", self.about_text())
 
-    def fill_menu(self, menu):
+    def fill_menu(self, menu, items=None):
         menu.clear()
-        for item in self.menu_actions():
+        for item in self.menu_tree() if items is None else items:
             if item is None:
                 menu.addSeparator()
+                continue
+            if isinstance(item[1], list):
+                self.fill_menu(menu.addMenu(item[0]), item[1])
                 continue
             label, callback, checked = item
             action = QAction(label, menu)
