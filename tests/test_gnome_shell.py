@@ -1,7 +1,11 @@
 import json
 
-from felix.core.world import Rect, WinRect
-from felix.platform.gnome_shell import parse_state
+import pytest
+
+pytest.importorskip("jeepney")  # backend réservé à Linux (dépendance jeepney)
+
+from felix.core.world import Rect, WinRect  # noqa: E402
+from felix.platform.gnome_shell import parse_state  # noqa: E402
 
 
 def test_parse_state_reads_monitors_workareas_and_windows_top_down():
