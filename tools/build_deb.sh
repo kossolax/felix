@@ -42,7 +42,8 @@ Architecture: amd64
 Maintainer: kossolax <kossolax@users.noreply.github.com>
 Installed-Size: $(du -sk "$PKG" | cut -f1)
 Depends: libxcb-cursor0, libxkbcommon-x11-0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0,
- libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1, libegl1, libgl1, libfontconfig1, libdbus-1-3
+ libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1, libegl1, libgl1, libfontconfig1, libdbus-1-3,
+ libpulse0
 Homepage: https://github.com/kossolax/felix
 Description: Virtual Felix, le chat de bureau
  Remake du ScreenMate Felix II (Felix, 1999-2000) : le chat marche sur

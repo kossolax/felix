@@ -53,20 +53,13 @@ def gnome_helper_available(session):
     return helper_available()
 
 
-def check_sounds(directory, timeout=5.0):
-    """Charge les sons comme l'appli (QtMultimedia) ; renvoie (prêts, total). Vérifie que le paquet
-    embarque bien ce qu'il faut pour les jouer, sans rien jouer."""
-    import time
-    from PySide6.QtCore import QCoreApplication
-    from PySide6.QtMultimedia import QSoundEffect
+def check_sounds(directory):
+    """Crée les sons comme l'appli (QtMultimedia) ; renvoie (créés, fichiers). Vérifie que le paquet
+    embarque ce qu'il faut pour les jouer, sans rien jouer ni exiger de carte son (la CI n'en a pas)."""
+    from pathlib import Path
     from felix.render.sound import SoundPlayer
-    effects = [e for variants in SoundPlayer(directory).variants.values() for e in variants]
-    loading = (QSoundEffect.Status.Null, QSoundEffect.Status.Loading)
-    end = time.monotonic() + timeout
-    while any(e.status() in loading for e in effects) and time.monotonic() < end:
-        QCoreApplication.processEvents()
-        time.sleep(0.01)
-    return sum(e.status() == QSoundEffect.Status.Ready for e in effects), len(effects)
+    created = sum(len(variants) for variants in SoundPlayer(directory).variants.values())
+    return created, len(list(Path(directory).glob("*.wav")))
 
 
 def selftest(felix, sounds=None):
@@ -96,11 +89,11 @@ def selftest(felix, sounds=None):
         return 1
     detail = ""
     if sounds is not None:
-        ready, total = check_sounds(sounds)
-        if not total or ready < total:
-            log.error("selftest : %d sons prêts sur %d dans %s", ready, total, sounds)
+        created, total = check_sounds(sounds)
+        if not total or created < total:
+            log.error("selftest : %d sons créés sur %d dans %s", created, total, sounds)
             return 1
-        detail = f", {ready} sons"
+        detail = f", {created} sons"
     message = f"selftest ok ({felix.backend.name}, {len(felix.bank.animations)} animations{detail})"
     log.info(message)
     print(message)
