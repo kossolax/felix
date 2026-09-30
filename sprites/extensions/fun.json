@@ -21,14 +21,14 @@
     "frog_sit_left":    {"sheet": 507, "frames": [0, 0, 0, 0, 0, 1, 2, 2, 2, 1], "fps": 10, "loop": true, "anchor": [51, 60], "facing": "left"},
     "frog_sit_right":   {"sheet": 508, "frames": [0, 0, 0, 0, 0, 1, 2, 2, 2, 1], "fps": 10, "loop": true, "anchor": [21, 60], "facing": "right"},
     "frog_hop_left":    {"sheet": 509, "frames": [0, 1, 2, 3, 5], "fps": 10, "anchor": [50, 59], "facing": "left"},
-    "frog_hop_right":   {"sheet": 510, "frames": [0, 1, 2, 3, 5], "fps": 10, "anchor": [53, 59], "facing": "right"},
+    "frog_hop_right":   {"sheet": 510, "frames": [0, 1, 2, 3, 5], "fps": 10, "anchor": [54, 59], "facing": "right"},
     "mouse_walk_left":  {"sheet": 515, "frames": [0, 1, 2, 3, 5, 6], "fps": 10, "anchor": [27, 28]},
     "mouse_walk_right": {"sheet": 516, "frames": [0, 1, 2, 3, 5, 6], "fps": 10, "anchor": [30, 28]},
-    "mouse_notice":     {"sheet": 511, "frames": "0-1", "fps": 3, "anchor": [47, 74], "facing": "right"},
+    "mouse_notice":     {"sheet": 511, "frames": "0-1", "fps": 3, "loop": true, "anchor": [47, 74], "facing": "right"},
     "mouse_near":       {"sheet": 511, "frames": "2-5", "fps": 10, "anchor": [47, 74], "facing": "right"},
     "mouse_pounce":     {"sheet": 512, "frames": [0, 0, 1, 2, 3, 4, 4, 4, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], "fps": 10, "anchor": [60, 88], "facing": "right"},
-    "mouse_play":       {"sheet": 513, "frames": "0-10", "fps": 10, "loop": true, "anchor": [12, 74], "facing": "right"},
-    "mouse_upright":    {"sheet": 513, "frames": "11-14", "fps": 10, "anchor": [12, 74], "facing": "right"},
+    "mouse_play":       {"sheet": 513, "frames": "0-5", "fps": 10, "loop": true, "anchor": [12, 74], "facing": "right"},
+    "mouse_upright":    {"sheet": 513, "frames": "6-14", "fps": 10, "anchor": [12, 74], "facing": "right"},
     "mouse_release":    {"sheet": 514, "frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13, 13, 13, 13, 14, 14, 14], "fps": 10, "anchor": [12, 74], "exit": [98, 74], "facing": "right"}
   }
 }

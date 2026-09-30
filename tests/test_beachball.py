@@ -7,7 +7,7 @@ from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.core.surfaces import compute_surfaces
 from felix.core.tuning import BEACH_LAUNCH
-from felix.core.world import Monitor, Rect, WorldSnapshot
+from felix.core.world import Monitor, Rect, WinRect, WorldSnapshot
 from tests.anim_helpers import make_anims
 
 DT = 1 / 30
@@ -124,3 +124,34 @@ def test_no_beach_ball_game_without_the_extension():
     pet.request("beachball")
     run(pet, 5)
     assert pet.ball is None and pet.scene is None
+
+
+def test_a_ball_lying_under_the_cats_own_window_does_not_make_him_hop_on_the_spot():
+    win = WinRect(1, Rect(700, 700, 1220, 380))  # collée au bord droit, jusqu'au sol
+    snap = WorldSnapshot(monitors=(SCREEN,), windows=(win,), cursor=None)
+    segs = compute_surfaces(snap)
+    pet = Pet(make_anims(), rng=random.Random(0), needs=Needs(0.1, 0.1))
+    pet.update(DT, snap)
+    top = next(s for s in segs if s.owner == 1)
+    pet.mode = "script"
+    pet.body.x, pet.body.y, pet.body.support = 1100, top.y, top
+    pet.body.vx = pet.body.vy = 0.0
+    pet.ball = Ball(1087, 1080, kind=BEACH)
+    pet.ball.update(DT, snap, segs)
+    pet.ball.support = next(s for s in segs if s.owner is None)
+    assert pet._leap_to_ball() is None  # le saut retomberait sur sa propre fenêtre
+    pet._run(pet._brain())
+    trace = []
+    for _ in range(int(60 / DT)):
+        trace.append(pet.update(DT, snap).animation)
+    hops = sum(1 for a, b in zip(trace, trace[1:]) if b.startswith("jump_land") and not a.startswith("jump_land"))
+    assert hops <= 1
+
+
+def test_the_final_pounce_is_not_played_off_the_screen():
+    for seed, x0 in ((1, 40), (1, 1880), (4, 1880), (8, 1880)):
+        _pet, trace = game(seed, x0)
+        for view, x, _i in trace:
+            if view.animation == "beach_pounce":
+                reach = x - 112 if view.mirrored else x + 112  # la planche 501 va jusqu'à 111 px des pieds
+                assert 0 <= reach <= 1920, (seed, x0)

@@ -22,6 +22,8 @@ def settled_pet(snap, seed=5, x=None):
     pet = Pet(make_anims(), rng=random.Random(seed), needs=Needs(0.1, 0.1))
     for _ in range(int(4 / DT)):
         pet.update(DT, snap)
+    while pet.scene is not None:  # une bêtise qu'il a commencée d'elle-même se finit avant le menu
+        pet.update(DT, snap)
     if x is not None:
         pet.body.x = x
     return pet

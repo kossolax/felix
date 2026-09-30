@@ -8,6 +8,7 @@ from felix.core.actions import Play, WalkTo
 from felix.core.tuning import BUTTERFLY_ROOM, EDGE_MARGIN, LEAVES_ROOM, TEAR_ROOM, WALK_ON
 
 MORE_MISCHIEF_EXT = {"tear": 1, "butterfly": 1, "leaves": 1}  # poids faibles : scènes longues
+ROOMS = {"tear": TEAR_ROOM, "butterfly": BUTTERFLY_ROOM, "leaves": LEAVES_ROOM}
 HIDDEN = frozenset({"tear_inside", "tear_wait",  # le chat est dans la déchirure : rien à attraper
                     "kitten_flap_through", "kitten_flap_push", "kitten_flap_wait"})  # … ou passé la chatière
 
@@ -16,7 +17,10 @@ class MoreMischiefScenes:
     """Scènes du chat (mêlées à Pet) ; chacune ne se joue que si l'extension est installée."""
 
     def _more_mischief_ext(self):
-        return MORE_MISCHIEF_EXT if "tear_scratch" in self.anims else {}
+        """Celles qui tiennent sur la surface du chat : sinon le décor déborderait dans le vide."""
+        if "tear_scratch" not in self.anims:
+            return {}
+        return {name: w for name, w in MORE_MISCHIEF_EXT.items() if self._has_room(*ROOMS[name])}
 
     def _side(self, room):
         """En miroir (décor à gauche) si c'est là qu'il y a le plus de place."""
@@ -46,7 +50,7 @@ class MoreMischiefScenes:
     def _do_tear(self):
         """Il déchire l'écran, s'y glisse, joue à coucou dedans, ressort et s'en va ; la déchirure
         se referme derrière lui."""
-        if "tear_scratch" not in self.anims:
+        if "tear_scratch" not in self.anims or not self._has_room(*TEAR_ROOM):
             return
         m = yield from self._start(TEAR_ROOM)
         for name in ("tear_scratch", "tear_enter", "tear_inside"):
@@ -61,7 +65,7 @@ class MoreMischiefScenes:
     def _do_butterfly(self):
         """Un papillon se pose sur son nez : il le suit, se dresse, le chasse d'un coup de patte,
         bondit, le laisse marcher sur sa tête, jusqu'à ce qu'il s'envole."""
-        if "butterfly_arrive" not in self.anims:
+        if "butterfly_arrive" not in self.anims or not self._has_room(*BUTTERFLY_ROOM):
             return
         m = yield from self._start(BUTTERFLY_ROOM)
         for name in ("butterfly_arrive", "butterfly_nose", "butterfly_sit", "butterfly_follow",
@@ -74,7 +78,7 @@ class MoreMischiefScenes:
     def _do_leaves(self):
         """Un tas de feuilles mortes : à l'affût, il plonge dedans, s'y roule, s'ébroue, le traverse
         et s'en va ; le tas s'efface."""
-        if "leaves_appear" not in self.anims:
+        if "leaves_appear" not in self.anims or not self._has_room(*LEAVES_ROOM):
             return
         m = yield from self._start(LEAVES_ROOM)
         yield Play("leaves_appear", mirrored=m)

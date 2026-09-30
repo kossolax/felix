@@ -26,6 +26,7 @@ class Frog:
         self.k = scale
         self.heading = heading  # 1 : tournée vers la droite
         self.exits = False  # s'en va pour de bon : saute jusqu'à sortir de l'écran
+        self.entering = False  # arrive de derrière le bord de l'écran, au bout de son sol
         self.gone = False
         self._hops = 0  # sauts encore à faire
         self._pause = (0.0, 0.0)
@@ -76,9 +77,12 @@ class Frog:
     def update(self, dt, snap, segs):
         if self.gone:
             return
-        step(self, dt, snap, segs)  # suit sa fenêtre, ou tombe
-        if self.support is None:
-            return
+        if not self.entering:
+            x = self.x
+            step(self, dt, snap, segs)  # suit sa fenêtre, ou tombe
+            self._x0 += self.x - x  # un saut en cours suit la fenêtre qui glisse
+            if self.support is None:
+                return
         if self.hopping:
             self._hop_t += dt
             i = min(int(self._hop_t * FROG_HOP_FPS), len(FROG_HOP) - 1)
@@ -87,7 +91,12 @@ class Frog:
                 self._hop_t = None
                 self._sit_t = 0.0
                 self._wait = self.rng.uniform(*self._pause)
-            if not self.support.spans(self.x):
+            if self.entering:
+                self.entering = not self.support.spans(self.x)
+            elif not self.support.spans(self.x):
+                if self.exits and self.support.owner is None:
+                    self.gone = True  # au bout du sol de son écran : partie
+                    return
                 self.support = None  # au bout de sa surface : elle tombe
                 self.vx = self.vy = 0.0
         else:
@@ -98,4 +107,4 @@ class Frog:
                 self._hop_t, self._x0 = 0.0, self.x
         if self.exits and snap.monitors:
             left, _top, right, _bottom = _bounds(snap)
-            self.gone = not (left - 40 * self.k <= self.x <= right + 40 * self.k)
+            self.gone = self.gone or not (left - 40 * self.k <= self.x <= right + 40 * self.k)

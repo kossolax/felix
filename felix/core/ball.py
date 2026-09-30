@@ -58,6 +58,7 @@ class Ball:
         self.home = home  # "box" si elle sort de la boîte à jouets
         self.held = False
         self.exits = False  # renvoyée pour de bon : plus de murs ni de frottement
+        self.entering = False  # un jouet qui arrive de derrière le bord de l'écran, au bout de son sol
         self.gone = False
         self.roll = 0.0  # distance roulée (signée), pour l'image
         self.heading = 1  # sens de la marche (jouets qui marchent)
@@ -117,7 +118,7 @@ class Ball:
     def update(self, dt, snap, segs):
         if self.held or self.gone:
             return
-        if self.support is not None:
+        if self.support is not None and not self.entering:
             follow_support(self, snap, segs)
             if self.support is None:
                 self.vy = 0.0
@@ -128,7 +129,7 @@ class Ball:
         if self.exits and snap.monitors:
             r = self.kind.radius * self.k
             left, top, right, bottom = _bounds(snap)
-            self.gone = not (left - r <= self.x <= right + r and self.y <= bottom + 2 * r)
+            self.gone = self.gone or not (left - r <= self.x <= right + r and self.y <= bottom + 2 * r)
 
     def _roll(self, dt, snap, segs):
         if self.vx == 0:
@@ -141,6 +142,9 @@ class Ball:
             self.vx = 0.0 if abs(self.vx) <= dv else self.vx - math.copysign(dv, self.vx)
         seg = self.support
         r = self.kind.radius * self.k
+        if self.entering:
+            self.entering = not seg.x0 + r <= self.x <= seg.x1 - r
+            return
         walls = not self.exits
         lo = seg.x0 + r if walls and self._wall(seg, -1, snap) else seg.x0
         hi = seg.x1 - r if walls and self._wall(seg, 1, snap) else seg.x1
@@ -150,6 +154,9 @@ class Ball:
         if (side < 0 and lo > seg.x0) or (side > 0 and hi < seg.x1):  # mur : elle repart dans l'autre sens
             self.x = lo if side < 0 else hi - 0.01
             self.vx = -self.vx * WALL_BOUNCE
+            return
+        if self.exits and seg.owner is None:
+            self.gone = True  # au bout du sol de son écran : partie
             return
         nxt = support_at(segs, self.x, seg.y)
         if nxt is not None:  # une autre surface prend le relais à la même hauteur

@@ -11,9 +11,9 @@ import random
 from felix.core.anim import Player
 from felix.core.feeding import FeedingScenes
 from felix.core.fun import FunScenes
-from felix.core.kitten_scenes import KittenScenes
-from felix.core.mischief import MischiefScenes
-from felix.core.more_mischief import HIDDEN, MoreMischiefScenes
+from felix.core.kitten_scenes import KITTEN_DUO, KittenScenes
+from felix.core.mischief import MISCHIEF_EXT, MischiefScenes
+from felix.core.more_mischief import HIDDEN, MORE_MISCHIEF_EXT, MoreMischiefScenes
 from felix.core.ball import YARN, Ball
 from felix.core.mood import Temperament
 from felix.core.needs import Needs
@@ -24,7 +24,7 @@ from felix.core.actions import (
     Bat,
 )
 from felix.core.tuning import (
-    EDGE_MARGIN, JUMP_UP, JUMP_DOWN, JUMP_REACH, SCARED_FALL, HEAD_HEIGHT, ATTENTION, HUNT_LEVEL,
+    EDGE_MARGIN, JUMP_APEX, JUMP_UP, JUMP_DOWN, JUMP_REACH, SCARED_FALL, HEAD_HEIGHT, ATTENTION, HUNT_LEVEL,
     HUNT_APPROACH, HUNT_CHANCE, HUNT_COOLDOWN, BORED_AFTER, PREY_FRESH, CURSOR_JITTER, FEED_ROOM, DRINK_ROOM,
     EAT_CYCLES, LAP_CYCLES, FISH_WATCH, FISH_NOSE, PRINTS_ROOM, FISHBOWL_ROOM, TV_ROOM, YARN_ROOM, TV_TIME,
     CLIMB_LIFT, CLIMB_TOP_DROP, CLIMB_MIN, BAKED_BALL, BALL_LAUNCH, BAT_SPEED, AWAY_SPEED,
@@ -43,6 +43,14 @@ BEHAVIORS = {
 BEG_WEIGHT = 30
 MISCHIEF = {"prints": 3, "fishbowl": 2, "tv": 1, "yarn": 1, "outing": 1}
 CLIMB_WEIGHT = 10
+# scènes des extensions qu'il fait de lui-même : on ne les coupe pas (AddToNoInterruptionsList
+# de l'original) ; un clic ou le menu attendent leur fin
+SOLO_SCENES = frozenset(MISCHIEF_EXT) | frozenset(MORE_MISCHIEF_EXT) | frozenset(KITTEN_DUO)
+# images où le chat dessiné s'écarte de ses pieds, ou dessine son accessoire (pot, corbeille,
+# souris, chaton…) : on ne l'attrape pas, il finirait loin du curseur et l'accessoire disparaîtrait
+UNGRABBABLE = ("glass_scratch_", "plant_", "bin_", "tear_", "butterfly_", "leaves_", "kitten_",
+               "mouse_near", "mouse_pounce", "mouse_play", "mouse_upright", "mouse_release",
+               "beach_pounce", "beach_flat", "beach_getup")
 
 
 class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefScenes):
@@ -104,8 +112,9 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
             return
         dx = -delta[0] if self.mirrored else delta[0]
         seg = self.body.support
-        m = EDGE_MARGIN * self.k
-        self.body.x = min(max(self.body.x + dx, seg.x0 + m), seg.x1 - m)
+        # les pieds rejoignent le chat dessiné, tant qu'ils restent sur la surface (la marge ne
+        # compte pas ici : le ramener en deçà le ferait sauter en arrière)
+        self.body.x = min(max(self.body.x + dx, seg.x0), seg.x1 - 1)
 
     def emit(self, event):
         self._events.append(event)
@@ -172,8 +181,7 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
 
     def stroke(self):
         """Caresse (clic sans glisser) : le chat s'assoit et ronronne."""
-        if (self.body is not None and self.mode == "script" and self.scene is None and self.body.grounded
-                and self.player.animation.name not in HIDDEN):
+        if self.mode == "script" and self.scene is None and self.grabbable() and self.body.grounded:
             self._run(self._stroked())
 
     def marks_on_screen(self, anim):
@@ -208,13 +216,18 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
     @still.setter
     def still(self, value):
         self._still = value
-        if self.mode == "script" and not getattr(self.action, "airborne", False):
-            self.scene = None
-            self._run(self._brain())
+        if self.scene is None and self.mode == "script" and not getattr(self.action, "airborne", False):
+            self._run(self._brain())  # une scène en cours se finit d'abord
+
+    def grabbable(self):
+        """Pas dehors, ni caché dans la déchirure, ni dessiné loin de ses pieds, ni en train de manger."""
+        name = self.player.animation.name if self.player is not None else ""
+        return (not self.away and self.body is not None and name not in HIDDEN
+                and not name.startswith(UNGRABBABLE) and self._item_state != "eating")
 
     def grab(self, px, py):
-        if self.away or self.body is None or self.player.animation.name in HIDDEN:
-            return  # dehors, ou caché dans la déchirure : rien à attraper
+        if not self.grabbable():
+            return
         self.scene = None
         self.mode = "held"
         self._pointer = (px, py)
@@ -392,6 +405,10 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
             name = self.temper.pick(choices)
             if name == "jump":
                 yield from self._do_jump(targets)
+            elif name in SOLO_SCENES:
+                self.scene = name
+                yield from getattr(self, f"_do_{name}")()
+                self.scene = None
             else:
                 yield from getattr(self, f"_do_{name}")()
 
@@ -462,6 +479,12 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
         yield Play("sit_down")
         yield Play("sit_front", duration=3.0, idle=True, event="meow")
         yield Play("sit_up")
+
+    def _has_room(self, left, right):
+        """La surface du chat est-elle assez longue pour une scène qui s'étend de `left` px derrière
+        ses pieds à `right` px devant (plus la marge des deux bouts) ?"""
+        seg = self.body.support if self.body is not None else None
+        return seg is not None and seg.x1 - seg.x0 >= (left + right + 2 * EDGE_MARGIN) * self.k
 
     def _make_room(self, left, right):
         seg = self.body.support
@@ -670,9 +693,15 @@ class Pet(FunScenes, FeedingScenes, KittenScenes, MischiefScenes, MoreMischiefSc
         near = 1 if self.ball.x >= self.body.x else -1
         for side in (near, -near):
             x = self.ball.x - side * self.ball.kind.at_feet * self.k
-            if s.x0 + m <= x <= s.x1 - m and abs(x - self.body.x) <= JUMP_REACH:
+            if s.x0 + m <= x <= s.x1 - m and abs(x - self.body.x) <= JUMP_REACH and self._lands_on(x, s):
                 return x, s.y
         return None
+
+    def _lands_on(self, x, s):
+        """Un saut vers (x, s.y) y retombe-t-il, sans être arrêté avant par une surface au-dessus
+        (sa propre fenêtre, quand la cible est sur le sol en dessous d'elle) ?"""
+        top = min(self.body.y, s.y) - JUMP_APEX * self.k
+        return not any(t != s and t.spans(x) and top <= t.y < s.y for t in self.segments)
 
     def _play_at_feet(self, side, last):
         """Assis à côté de la pelote : il la renifle, la tapote puis la renvoie d'un coup de patte ;

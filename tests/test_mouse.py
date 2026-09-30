@@ -1,5 +1,6 @@
 """Extension Fun and Games : la souris mécanique. Elle arrive en marchant, le chat la guette,
 bondit, l'attrape et la retourne, joue avec, puis la relâche et la regarde s'en aller."""
+import json
 import random
 
 from felix.core.ball import MOUSE
@@ -7,7 +8,9 @@ from felix.core.needs import Needs
 from felix.core.pet import Pet
 from felix.core.tuning import MOUSE_FROM, MOUSE_NEAR, MOUSE_SPEED
 from felix.core.world import Monitor, Rect, WorldSnapshot
-from tests.anim_helpers import make_anims
+from tests.anim_helpers import CELL, MANIFEST, make_anims
+
+MANIFEST_FUN = MANIFEST.parent / "extensions" / "fun.json"
 
 DT = 1 / 30
 SCREEN = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080))
@@ -117,3 +120,31 @@ def test_no_mouse_without_the_extension():
     for _ in range(int(5 / DT)):
         pet.update(DT, SNAP)
     assert pet.ball is None and pet.scene is None
+
+
+def test_the_mouse_walks_in_from_off_screen_and_off_it_again():
+    for seed, x in ((0, 1500), (1, 300)):
+        pet, trace = game(seed, x)
+        mice = [v.ball for v, _x, _i in trace if v.ball is not None]
+        assert mice[0].x > 1920 if x > 960 else mice[0].x < 0, seed
+        assert all(m.y == 1080 for m in mice), seed  # elle sort par le bord, sans tomber sous le sol
+
+
+def test_the_cat_keeps_his_eye_on_the_mouse_until_it_is_close():
+    pet, trace = game(3)
+    seen = names(trace)
+    waiting = seen[seen.index("mouse_notice"):seen.index("mouse_near")]
+    assert set(waiting) == {"mouse_notice"}  # pas de retour à la pose debout, tête baissée
+
+
+def test_playing_with_the_mouse_never_snaps_back_to_the_first_frame():
+    cols = json.loads(MANIFEST_FUN.read_text(encoding="utf-8"))["sheets"]["513"][0]
+
+    def cell(rect):
+        return rect[0] // CELL[0] + rect[1] // CELL[1] * cols
+
+    for seed in range(4):
+        _pet, trace = game(seed)
+        cells = [cell(v.frame.rect) for v, _x, _i in trace if v.animation in ("mouse_play", "mouse_upright")]
+        steps = {(a, b) for a, b in zip(cells, cells[1:]) if a != b}
+        assert (10, 0) not in steps and cells[-1] == 14, seed  # jusqu'au bout de la planche, sans saut

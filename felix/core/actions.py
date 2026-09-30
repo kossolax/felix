@@ -143,8 +143,16 @@ class WalkTo:
         reached = (x >= self.target) if dx > 0 else (x <= self.target)
         if reached:
             x = self.target
-        pet.body.x = min(max(x, lo), hi)
-        return reached or pet.body.x in (lo, hi)
+        # bornée devant lui seulement : parti d'au-delà de la marge (lâché au bord), il s'en éloigne
+        # sans être ramené d'un coup, et ne recule jamais
+        if dx > 0:
+            x = min(x, max(hi, pet.body.x))
+            stop = x >= hi
+        else:
+            x = max(x, min(lo, pet.body.x))
+            stop = x <= lo
+        pet.body.x = x
+        return reached or stop
 
 
 class Watch:
@@ -328,18 +336,24 @@ class WatchBall:
     """Debout, suit la pelote des yeux (et se retourne si elle passe derrière lui).
 
     until : 'free' (posée et lâchée), 'rest' (arrêtée), 'gone' (partie), 'near' (à moins de `near`
-    px de lui) ou 'never' (juste la regarder) ; `ok` : c'est arrivé avant la fin de la patience."""
+    px de lui, sur sa surface) ou 'never' (juste la regarder) ; `ok` : c'est arrivé avant la fin
+    de la patience. `pose` : une animation en boucle à jouer à la place (sans se retourner)."""
     airborne = False
 
-    def __init__(self, limit, until="free", near=0.0):
+    def __init__(self, limit, until="free", near=0.0, pose=None, mirrored=False):
         self.limit = limit
         self.until = until
         self.near = near
+        self.pose = pose
+        self.mirrored = mirrored
 
     def start(self, pet):
         self.elapsed = 0.0
         self.ok = False
-        pet.play(f"stand_{pet.facing}")
+        if self.pose:
+            pet.play(self.pose, self.mirrored)
+        else:
+            pet.play(f"stand_{pet.facing}")
 
     def _met(self, ball):
         if self.until == "gone":
@@ -351,20 +365,26 @@ class WatchBall:
         return self.until == "rest" and ball.resting
 
     def update(self, pet, dt):
-        if self.until == "near" and pet.ball is not None and abs(pet.ball.x - pet.body.x) <= self.near:
+        ball = pet.ball
+        if (self.until == "near" and ball is not None and ball.support == pet.body.support
+                and abs(ball.x - pet.body.x) <= self.near):
             self.ok = True
             return True
         self.elapsed += dt
         pet.player.update(dt)
-        ball = pet.ball
         if self._met(ball):
             self.ok = True
             return True
         if ball is None:
             return True
-        want = "right" if ball.x >= pet.body.x else "left"
-        if want != pet.facing and abs(ball.x - pet.body.x) > 10:
-            pet.play(f"stand_{want}")
+        name = pet.player.animation.name
+        if name.startswith("turn_to_"):
+            if pet.player.finished:
+                pet.play(f"stand_{pet.facing}")
+        elif not self.pose:
+            want = "right" if ball.x >= pet.body.x else "left"
+            if want != pet.facing and abs(ball.x - pet.body.x) > 10:
+                pet.play(f"turn_to_{want}")  # il se retourne, sans pivoter d'un coup
         return self.elapsed >= self.limit
 
 

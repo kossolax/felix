@@ -9,7 +9,7 @@ from felix.core.actions import Bat, Jump, Play, WalkTo, WatchBall
 from felix.core.ball import BEACH, MOUSE, Ball
 from felix.core.frog import Frog
 from felix.core.tuning import (
-    BEACH_REST, BEACH_ROUNDS, BEACH_SPEED, EDGE_MARGIN, FROG_APPROACH_PAUSE, FROG_FLEE, FROG_HOP, FROG_NEAR,
+    BEACH_POUNCE_REACH, BEACH_REST, BEACH_ROUNDS, BEACH_SPEED, EDGE_MARGIN, FROG_APPROACH_PAUSE, FROG_FLEE, FROG_HOP, FROG_NEAR,
     FROG_ROOM,
     FROG_ROUNDS, FROG_WAIT, FROG_WALK, MOUSE_NEAR, MOUSE_PLAY, MOUSE_SPEED, MOUSE_WAIT, MOUSE_WALK,
 )
@@ -45,6 +45,8 @@ class FunScenes:
             yield Play("sit_up", mirrored=mirrored)  # on le lui a pris
             return
         ball.x = spot
+        if last and not self._room_for_pounce(side):
+            last = False  # contre un bord, le chat couché sortirait de l'écran : une tape de plus
         if last:
             self.ball = None  # les images le dessinent jusqu'au bout : il va le crever
             yield Play("beach_pounce", mirrored=mirrored)
@@ -60,6 +62,11 @@ class FunScenes:
         yield Bat(side, self.rng.uniform(*BEACH_SPEED) * self.k, 0, name="beach_pat")
         yield Play("beach_watch", mirrored=mirrored)  # il le regarde rouler
         yield Play("sit_up", mirrored=mirrored)
+
+    def _room_for_pounce(self, side):
+        seg = self.body.support
+        reach = self.body.x + side * BEACH_POUNCE_REACH * self.k
+        return seg is not None and seg.x0 <= reach <= seg.x1
 
     def _meet_toy(self, walk):
         """Un jouet qui se déplace seul va arriver du bout le plus proche de la surface du chat : il
@@ -87,11 +94,14 @@ class FunScenes:
         side, end = yield from self._meet_toy(MOUSE_WALK)
         mirrored = side < 0
         seg = self.body.support
-        self.ball = Ball(end - side * MOUSE.radius * k, seg.y, scale=k, kind=MOUSE)
+        offscreen = seg.owner is None  # le bout du sol est le bord de l'écran : elle arrive de derrière
+        self.ball = Ball(end + side * (MOUSE.radius + 4) * k if offscreen else end - side * MOUSE.radius * k,
+                         seg.y, scale=k, kind=MOUSE)
         self.ball.support = seg
+        self.ball.entering = offscreen
         self.ball.kick(-side * MOUSE_SPEED * k, 0.0)
         yield Play("mouse_notice", mirrored=mirrored)
-        wait = WatchBall(MOUSE_WAIT, until="near", near=(MOUSE_NEAR + 3) * k)
+        wait = WatchBall(MOUSE_WAIT, until="near", near=(MOUSE_NEAR + 3) * k, pose="mouse_notice", mirrored=mirrored)
         yield wait
         mouse = self.ball
         if not wait.ok or mouse is None:
@@ -114,8 +124,11 @@ class FunScenes:
         k = self.k
         side, end = yield from self._meet_toy(FROG_WALK)
         seg = self.body.support
-        frog = Frog(end - side * 25 * k, seg.y, heading=-side, scale=k, rng=self.rng)
+        offscreen = seg.owner is None  # le bout du sol est le bord de l'écran : elle arrive de derrière
+        frog = Frog(end + side * 55 * k if offscreen else end - side * 25 * k, seg.y, heading=-side, scale=k,
+                    rng=self.rng)
         frog.support = seg
+        frog.entering = offscreen
         self.ball = frog
         frog.hop(10 ** 6, pause=FROG_APPROACH_PAUSE)
         wait = WatchBall(FROG_WAIT, until="near", near=FROG_NEAR * k)
