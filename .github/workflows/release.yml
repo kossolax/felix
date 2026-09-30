@@ -18,13 +18,6 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt pyinstaller
-      - name: Sprites d'origine (pour les tests seulement, pas dans le paquet)
-        shell: bash
-        run: |
-          gh release download original-felix2 -p felix2.exe -D assets/cache || true
-          python tools/extract_felix.py
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Tests
         run: python -m pytest -q
         env:
@@ -34,7 +27,6 @@ jobs:
       - name: Selftest de l'exe
         shell: pwsh
         run: |
-          $env:FELIX_ASSETS = "$pwd\assets\original"
           $p = Start-Process -FilePath dist\felix\felix.exe -ArgumentList "--selftest" -Wait -PassThru
           Get-Content "$env:LOCALAPPDATA\felix\felix.log" -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
@@ -63,12 +55,6 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xinerama0 libxcb-xkb1 libfontconfig1
       - run: pip install -r requirements.txt pyinstaller
-      - name: Sprites d'origine (pour les tests seulement, pas dans le paquet)
-        run: |
-          gh release download original-felix2 -p felix2.exe -D assets/cache || true
-          python tools/extract_felix.py
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Tests
         run: python -m pytest -q
         env:
@@ -80,7 +66,7 @@ jobs:
       - name: Installation du paquet et selftest
         run: |
           sudo apt-get install -y ./dist/virtual-felix_*_amd64.deb
-          QT_QPA_PLATFORM=offscreen FELIX_ASSETS="$PWD/assets/original" virtual-felix --selftest
+          QT_QPA_PLATFORM=offscreen virtual-felix --selftest
       - uses: actions/upload-artifact@v4
         with:
           name: deb
@@ -106,9 +92,9 @@ jobs:
             \`gnome-extensions enable felix-helper@kossolax.github.io\`, puis déconnexion / reconnexion.
           - **Windows 10/11** : \`virtual-felix-${version}-windows-x64.zip\` → dézipper, lancer \`felix\\felix.exe\`.
 
-          Au premier lancement, Felix récupère les graphismes d'origine (felix2.exe, 758 Ko) sur archive.org
-          ou dans la release [original-felix2](https://github.com/${GITHUB_REPOSITORY}/releases/tag/original-felix2),
-          ou vous propose de choisir un felix2.exe déjà téléchargé. Aucun graphisme d'origine n'est inclus dans ces paquets.
+          Tout est inclus : le jeu d'origine et ses 5 extensions de 2001-2002, rien à télécharger au premier lancement.
+          Graphismes d'origine : AdTools et OgilvyOne Interactive pour Friskies Europe (Nestlé), voir
+          [CREDITS.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CREDITS.md). Remake non officiel et non commercial.
           EOF
           sed -i 's/^          //' notes.md
           gh release create "$GITHUB_REF_NAME" out/* --title "Virtual Felix $version" --notes-file notes.md

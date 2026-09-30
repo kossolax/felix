@@ -3,8 +3,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-pytestmark = pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_304.png").exists(),
-                                reason="sprites non extraits")
 
 
 @pytest.fixture(scope="module")

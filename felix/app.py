@@ -126,11 +126,6 @@ class FelixApp(QObject):
             return
         self._use_bank(self.bank_loader(scale))
 
-    def reload_sprites(self):
-        """Relit les planches (ex. les extensions viennent d'être extraites)."""
-        if self.bank_loader is not None:
-            self._use_bank(self.bank_loader(self.bank.scale))
-
     def _use_bank(self, bank):
         self.bank = bank
         self.props.bank = bank
@@ -418,11 +413,12 @@ class FelixApp(QObject):
 
     def about_text(self):
         return (f"<b>Virtual Felix {__version__}</b> — le chat de bureau, de retour sur Linux et Windows.<br><br>"
-                "Graphismes : <i>Felix II / Virtual Felix</i> (ScreenMates, AdTools et Ogilvy pour Purina "
-                "Felix, 1999-2000), extraits de l'exécutable d'origine conservé sur archive.org, pour un "
-                "usage personnel.<br>"
-                "Sons : enregistrements CC0 et du domaine public de Wikimedia Commons (voir "
-                "assets/sounds/CREDITS.md).<br><br>"
+                "Graphismes : <i>Virtual Felix 2 / Felix II</i> (1999-2000) et ses extensions (2001-2002), "
+                "créés pour Friskies Europe (Nestlé) par AdTools (ScreenMates) et OgilvyOne Interactive. "
+                "Programmes d'origine conservés par archive.org. Felix est une marque de Nestlé ; remake "
+                "non officiel, sans lien avec ses ayants droit.<br>"
+                "Sons : enregistrements CC0 et du domaine public de Wikimedia Commons.<br>"
+                "Détails : CREDITS.md.<br><br>"
                 "Clic gauche : caresser — glisser : attraper — clic droit : ce menu.")
 
     def show_about(self):

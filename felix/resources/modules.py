@@ -1,9 +1,9 @@
 """Extensions de Felix II (catslikefelix.com, 2001-2002) : jouets, repas, chaton, bêtises.
 
 Chacune était un installeur contenant une DLL (ressource MODULE/100) que Felix2.exe chargeait ;
-ses planches FIG complètent celles du jeu. Comme felix2.exe, rien n'est redistribué : on les
-récupère sur la Wayback Machine ou archive.org, et c'est la DLL qu'on vérifie (deux captures d'un
-même installeur diffèrent de quelques octets d'en-tête).
+ses planches FIG complètent celles du jeu. Leurs PNG sont livrés dans assets/original ; ce module
+les régénère (tools/extract_felix.py) depuis la Wayback Machine ou archive.org, en vérifiant la DLL
+(deux captures d'un même installeur diffèrent de quelques octets d'en-tête).
 """
 import hashlib
 import io

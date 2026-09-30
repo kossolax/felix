@@ -1,15 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller : pyinstaller felix.spec  →  dist/felix/ (onedir, sans console)
-#
-# Par défaut, les graphismes d'origine ne sont PAS embarqués : au premier lancement,
-# Felix propose de télécharger felix2.exe depuis archive.org et les extrait localement.
-# FELIX_BUNDLE_SPRITES=1 les inclut (usage strictement personnel, après tools/extract_felix.py).
-import os
+# Graphismes d'origine embarqués (assets/original, voir CREDITS.md) : rien à télécharger.
 import sys
 
-datas = [("sprites", "sprites"), ("assets/sounds", "assets/sounds"), ("assets/icon", "assets/icon")]
-if os.environ.get("FELIX_BUNDLE_SPRITES") == "1":
-    datas.append(("assets/original", "assets/original"))
+datas = [("sprites", "sprites"), ("assets/original", "assets/original"), ("assets/sounds", "assets/sounds"),
+         ("assets/icon", "assets/icon"), ("CREDITS.md", ".")]
 
 if sys.platform == "win32":
     hidden, excludes = ["felix.platform.windows"], ["tkinter", "Xlib", "jeepney"]

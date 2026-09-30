@@ -22,74 +22,6 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
-def ensure_sprites(interactive):
-    """Graphismes d'origine : déjà extraits, sinon téléchargés (archive.org / GitHub) ou pris d'un fichier."""
-    from felix.paths import find_sprites_dir, user_data_dir
-    found = find_sprites_dir()
-    if found or not interactive:
-        return found
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
-    from felix.resources.extract import SOURCE_SHA256, download, extract_images, verify_sha256
-    target = user_data_dir() / "original"
-    while True:
-        box = QMessageBox(QMessageBox.Icon.Question, "Felix",
-                          "Les graphismes d'origine de Felix ne sont pas encore installés.\n\n"
-                          "Felix peut télécharger l'exécutable d'origine (felix2.exe, 758 Ko) depuis archive.org "
-                          "ou la copie du projet sur GitHub, ou utiliser un felix2.exe que vous avez déjà. "
-                          "Ses 5 extensions de 2001 (jouets, repas, chaton, bêtises) suivront toutes seules.\n\n"
-                          f"Les images seront extraites dans {target}.")
-        fetch = box.addButton("Télécharger", QMessageBox.ButtonRole.AcceptRole)
-        pick = box.addButton("Choisir felix2.exe…", QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Cancel)
-        box.exec()
-        try:
-            if box.clickedButton() is fetch:
-                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-                try:
-                    data = download(user_data_dir() / "cache" / "felix2.exe")
-                finally:
-                    QApplication.restoreOverrideCursor()
-            elif box.clickedButton() is pick:
-                path, _ = QFileDialog.getOpenFileName(None, "felix2.exe d'origine", "", "Programme (*.exe)")
-                if not path:
-                    continue
-                with open(path, "rb") as fh:
-                    data = fh.read()
-                verify_sha256(data, SOURCE_SHA256)
-            else:
-                return None
-            extract_images(data, target)
-            return find_sprites_dir()
-        except (OSError, ValueError) as exc:
-            logging.getLogger("felix").warning("graphismes : %s", exc)
-            QMessageBox.warning(None, "Felix", f"Échec :\n{exc}\n\nEssayez un autre moyen.")
-
-
-def fetch_extensions(felix, sprites):
-    """Extensions de 2001-2002 (jouets, repas, chaton, bêtises) pas encore là : récupérées en
-    arrière-plan, puis le chat les découvre sans redémarrer."""
-    from felix.paths import user_data_dir
-    from felix.resources.modules import install_modules, missing_modules
-    missing = missing_modules(sprites)
-    if not missing:
-        return
-    from felix.extensions import ExtensionFetcher
-    log = logging.getLogger("felix")
-
-    def done(installed, errors):
-        for error in errors:
-            log.warning("extensions : %s", error)
-        if installed:
-            log.info("extensions installées : %s", ", ".join(installed))
-            felix.reload_sprites()
-
-    fetcher = ExtensionFetcher(lambda: install_modules(sprites, user_data_dir() / "cache" / "modules", missing))
-    fetcher.finished.connect(done)
-    felix.extension_fetcher = fetcher  # gardé en vie jusqu'au bout
-    fetcher.start()
-
-
 def create_backend(name, session):
     import os
     from felix.platform.degraded import QtScreensBackend
@@ -189,22 +121,22 @@ def main(argv=None):
         backend.stop()
         return 0
 
-    sprites = ensure_sprites(interactive=not args.selftest)
-    if sprites is None:
+    from felix.paths import MANIFEST, SPRITES
+    if not (SPRITES / "fig_100.png").exists():  # installation incomplète : jamais le cas d'un paquet
+        logging.getLogger("felix").error("graphismes introuvables dans %s", SPRITES)
         if not args.selftest:
-            QMessageBox.information(None, "Felix", "Pas de graphismes : Felix ne peut pas démarrer.")
+            QMessageBox.critical(None, "Felix", f"Graphismes introuvables dans {SPRITES} : réinstallez Felix.")
         backend.stop()
         return 2
 
     from felix.app import FelixApp
-    from felix.paths import MANIFEST
     from felix.render.sprites import SpriteBank
 
     from PySide6.QtCore import QSettings
     settings = QSettings("felix", "felix")
 
     def bank_loader(factor):
-        return SpriteBank.load(MANIFEST, sprites, scale=factor)
+        return SpriteBank.load(MANIFEST, SPRITES, scale=factor)
 
     bank = bank_loader(args.scale)
     rng = random.Random(args.seed) if args.seed is not None else None
@@ -222,7 +154,6 @@ def main(argv=None):
         code = selftest(felix)
         backend.stop()
         return code
-    fetch_extensions(felix, sprites)
     for scene in filter(None, args.demo.split(",")):
         felix.pet.request(scene)
     felix.start()

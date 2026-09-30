@@ -33,7 +33,6 @@ def test_opaque_bbox_of_empty_cell_is_none():
     assert opaque_bbox(img, (0, 0, 10, 10)) is None
 
 
-@pytest.mark.skipif(not ORIGINAL.exists(), reason="sprites d'origine non extraits")
 def test_real_manifest_matches_the_extracted_sheets(qapp):
     bank = SpriteBank.load(ROOT / "sprites" / "felix.json", ORIGINAL)
     assert len(bank.animations) >= 60
@@ -43,7 +42,6 @@ def test_real_manifest_matches_the_extracted_sheets(qapp):
     assert bank.pixmap(walk.frames[0], mirrored=True).size() == pix.size()
 
 
-@pytest.mark.skipif(not ORIGINAL.exists(), reason="sprites d'origine non extraits")
 def test_bank_can_be_loaded_twice_as_big(qapp):
     one = SpriteBank.load(ROOT / "sprites" / "felix.json", ORIGINAL)
     two = SpriteBank.load(ROOT / "sprites" / "felix.json", ORIGINAL, scale=2)

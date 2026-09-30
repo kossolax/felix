@@ -9,8 +9,6 @@ from felix.core.world import Monitor, Rect, WorldSnapshot
 from felix.platform.fake import FakeBackend
 
 ROOT = Path(__file__).resolve().parent.parent
-pytestmark = pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_609.png").exists(),
-                                reason="extension Feeding non extraite")
 SCREEN = Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080))
 
 
@@ -108,7 +106,6 @@ def test_the_held_item_goes_away_when_the_cat_stops_waiting(bank, tmp_path):
     assert not app.held.isVisible()
 
 
-@pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_716.png").exists(), reason="extension Kitten absente")
 def test_the_kitten_can_be_shown_from_the_menu_and_has_its_own_window(bank, tmp_path):
     app, _ = make_app(bank, tmp_path)
     action(app, "Montrer le chaton")[1](False)

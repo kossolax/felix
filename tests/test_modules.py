@@ -94,25 +94,3 @@ def test_the_five_extensions_of_felix_ii():
     assert [m.key for m in MODULES] == ["fun", "feeding", "kitten", "mischief", "more_mischief"]
     assert [m.first_fig for m in MODULES] == [500, 600, 700, 800, 905]
     assert all(len(m.sha256) == 64 and m.sources for m in MODULES)
-
-
-def test_missing_extensions_are_fetched_in_the_background(qapp):
-    import threading
-    from PySide6.QtCore import QCoreApplication
-    from felix.extensions import ExtensionFetcher
-    threads, results = [], []
-
-    def install():
-        threads.append(threading.current_thread())
-        return ["fun"], ["Kitten : hors ligne"]
-
-    fetcher = ExtensionFetcher(install)
-    fetcher.finished.connect(lambda installed, errors: results.append((installed, errors)))
-    fetcher.start()
-    for _ in range(200):
-        QCoreApplication.processEvents()
-        if results:
-            break
-        threading.Event().wait(0.01)
-    assert results == [(["fun"], ["Kitten : hors ligne"])]
-    assert threads and threads[0] is not threading.main_thread()

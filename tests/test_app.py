@@ -8,9 +8,6 @@ from felix.core.world import Monitor, Rect, WorldSnapshot
 from felix.platform.fake import FakeBackend
 
 ROOT = Path(__file__).resolve().parent.parent
-pytestmark = pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_100.png").exists(),
-                                reason="sprites non extraits")
-
 SNAP = WorldSnapshot(monitors=(Monitor(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080)),))
 
 
@@ -138,6 +135,9 @@ def test_about_text_credits_the_original_and_the_sounds(bank, tmp_path):
     app = make_app(bank, tmp_path)
     text = app.about_text()
     assert "Felix II" in text and "Wikimedia" in text
+    for who in ("Friskies Europe", "AdTools", "OgilvyOne Interactive", "CREDITS.md"):
+        assert who in text, who
+    assert "usage personnel" not in text  # les graphismes sont livrés avec l'appli
     assert any(item and item[0].startswith("À propos") for item in app.menu_actions())
 
 
@@ -334,21 +334,6 @@ def test_the_box_comes_back_when_its_monitor_is_plugged_again(bank, tmp_path):
     app.backend.set(two_screens())  # rebranché
     app.tick(1 / 30)
     assert app.toybox.center_x == 3000
-
-
-def test_sprites_are_reloaded_when_extensions_arrive(bank, tmp_path):
-    from felix.app import FelixApp
-    calls = []
-
-    def loader(scale):
-        calls.append(scale)
-        return bank
-
-    settings = QSettings(str(tmp_path / "felix.ini"), QSettings.Format.IniFormat)
-    app = FelixApp(bank, FakeBackend(SNAP), settings=settings, bank_loader=loader)
-    app.tick(1 / 30)
-    app.reload_sprites()
-    assert calls == [1] and app.bank is bank and app.pet.anims is bank.animations
 
 
 def test_the_beach_ball_is_in_the_menu_only_with_its_extension(bank, tmp_path):

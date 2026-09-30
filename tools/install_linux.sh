@@ -4,7 +4,6 @@
 #   tools/install_linux.sh [--autostart] [--no-extension]
 #
 # - crée venv/ et installe les dépendances Python ;
-# - télécharge felix2.exe depuis archive.org et en extrait les sprites (usage personnel) ;
 # - ajoute « Virtual Felix » au menu des applications ;
 # - sous GNOME, installe l'extension Felix Helper (indispensable sous Wayland) ;
 # - --autostart : lance Felix à l'ouverture de session.
@@ -32,17 +31,8 @@ echo "→ environnement Python (venv/)"
 venv/bin/pip install -q --upgrade pip
 venv/bin/pip install -q -r requirements.txt
 
-echo "→ graphismes d'origine (archive.org, felix2.exe, 758 Ko)"
-venv/bin/python tools/extract_felix.py
-
 echo "→ lanceur dans le menu des applications"
-ICON="$ROOT/assets/original/felix.png"
-QT_QPA_PLATFORM=offscreen venv/bin/python - "$ICON" <<'EOF'
-import sys
-from PySide6.QtGui import QGuiApplication, QImage
-app = QGuiApplication([])
-QImage("assets/original/felix.ico").scaled(64, 64).save(sys.argv[1])
-EOF
+ICON="$ROOT/assets/icon/felix.png"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 mkdir -p "$APPS"
 cat > "$APPS/virtual-felix.desktop" <<EOF

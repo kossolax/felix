@@ -1,27 +1,23 @@
-from felix.paths import find_sprites_dir, user_data_dir
+import json
+
+from felix.core.manifest import merge_manifests
+from felix.paths import MANIFEST, ROOT, SPRITES, user_data_dir
 
 
-def make_sprites(d):
-    d.mkdir(parents=True)
-    (d / "fig_100.png").write_bytes(b"png")
-    return d
+def test_the_original_sheets_ship_with_the_code():
+    """Le jeu et ses 5 extensions : toutes les planches sont dans le dépôt, rien à télécharger."""
+    base = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    extras = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((MANIFEST.parent / "extensions").glob("*.json"))]
+    assert len(extras) == 5
+    sheets = merge_manifests(base, extras)["sheets"]
+    missing = [key for key in sheets if not (SPRITES / f"fig_{key}.png").exists()]
+    assert SPRITES == ROOT / "assets" / "original" and not missing
 
 
-def test_env_override_wins(tmp_path):
-    custom = make_sprites(tmp_path / "custom")
-    env = {"FELIX_ASSETS": str(custom)}
-    assert find_sprites_dir(env=env, candidates=[make_sprites(tmp_path / "other")]) == custom
-
-
-def test_first_candidate_with_sprites(tmp_path):
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    good = make_sprites(tmp_path / "good")
-    assert find_sprites_dir(env={}, candidates=[empty, tmp_path / "missing", good]) == good
-
-
-def test_none_when_no_sprites(tmp_path):
-    assert find_sprites_dir(env={}, candidates=[tmp_path]) is None
+def test_the_credits_ship_with_the_sprites():
+    credits = (ROOT / "CREDITS.md").read_text(encoding="utf-8")
+    for who in ("Friskies Europe", "AdTools", "OgilvyOne Interactive", "Nestlé", "catslikefelix.com", "archive.org"):
+        assert who in credits, who
 
 
 def test_user_data_dir_per_platform(tmp_path):

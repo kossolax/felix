@@ -6,13 +6,13 @@
 # Contenu : /opt/virtual-felix (appli autonome), /usr/bin/virtual-felix, lanceur et icône,
 # extension GNOME Shell « Felix Helper » installée pour tout le système (à activer par
 # l'utilisateur : gnome-extensions enable felix-helper@kossolax.github.io, puis reconnexion
-# sous Wayland). Aucun graphisme d'origine : ils sont récupérés au premier lancement.
+# sous Wayland). Les graphismes d'origine sont embarqués (voir CREDITS.md).
 set -euo pipefail
 VERSION="${1:?usage : tools/build_deb.sh VERSION}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 [ -x dist/felix/felix ] || { echo "dist/felix/felix absent : lancez d'abord pyinstaller felix.spec" >&2; exit 1; }
-[ ! -d dist/felix/_internal/assets/original ] || { echo "le build embarque les sprites d'origine : refusé" >&2; exit 1; }
+[ -f dist/felix/_internal/assets/original/fig_100.png ] || { echo "le build n'embarque pas les graphismes d'origine" >&2; exit 1; }
 
 PKG="build/deb/virtual-felix_${VERSION}_amd64"
 EXT="felix-helper@kossolax.github.io"
@@ -45,10 +45,11 @@ Depends: libxcb-cursor0, libxkbcommon-x11-0, libxcb-icccm4, libxcb-image0, libxc
  libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1, libegl1, libgl1, libfontconfig1, libdbus-1-3
 Homepage: https://github.com/kossolax/felix
 Description: Virtual Felix, le chat de bureau
- Remake du ScreenMate Felix II (Purina Felix, 1999-2000) : le chat marche sur
+ Remake du ScreenMate Felix II (Felix, 1999-2000) : le chat marche sur
  la barre des tâches et les fenêtres, suit la souris, mange, boit et fait des
  bêtises. Fonctionne sous X11 et sous GNOME Wayland (avec l'extension fournie).
- Les graphismes d'origine sont téléchargés au premier lancement.
+ Graphismes d'origine : AdTools et OgilvyOne Interactive pour Friskies Europe
+ (voir /opt/virtual-felix/_internal/CREDITS.md).
 EOF
 for script in postinst postrm; do
     cat > "$PKG/DEBIAN/$script" <<'EOF'

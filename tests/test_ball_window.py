@@ -5,8 +5,6 @@ import pytest
 from felix.core.pet import BallView
 
 ROOT = Path(__file__).resolve().parent.parent
-pytestmark = pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_402.png").exists(),
-                                reason="sprites non extraits")
 
 
 @pytest.fixture(scope="module")
@@ -65,7 +63,6 @@ def test_a_ball_held_still_before_release_just_drops(bank):
     assert calls[-1] == ("throw", 0, 0)
 
 
-@pytest.mark.skipif(not (ROOT / "assets" / "original" / "fig_504.png").exists(), reason="extension Fun absente")
 def test_the_window_shows_whichever_ball_is_out(bank):
     win = make_window(bank, [])
     win.show_view(BallView(500, 1000, 0))

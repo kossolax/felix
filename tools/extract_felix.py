@@ -1,5 +1,6 @@
-"""Récupère felix2.exe (archive.org, sinon la copie des releases GitHub) et extrait ses sprites,
-puis ceux de ses 5 extensions (Wayback Machine, archive.org).
+"""Régénère assets/original (livré dans le dépôt, voir CREDITS.md) depuis les programmes d'origine :
+felix2.exe (archive.org, sinon la copie des releases GitHub), puis ses 5 extensions (Wayback Machine,
+archive.org). Chaque fichier est vérifié par son empreinte SHA-256.
 
 Usage : python tools/extract_felix.py [--from felix2.exe] [--out assets/original] [--no-extensions]
 """
