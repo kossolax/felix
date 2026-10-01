@@ -70,3 +70,15 @@ def test_props_hide_behind_a_fullscreen_app_and_come_back(qapp):
     assert len(props.windows) == 2 and not any(p.isVisible() for p in props.windows)
     props.set_hidden(False)
     assert all(p.isVisible() for p in props.windows)
+
+
+def test_claw_marks_of_a_climb_grow_upwards_in_a_single_window(qapp):
+    props = PropManager(FakeBank(), lifetime=60)
+    props.handle(("claws", 700.0, 760, 800, "montée"))
+    (w,) = props.windows
+    lower = w.pixmap.toImage().copy(0, 10, w.width(), 30)
+    props.handle(("claws", 700.0, 600, 800, "montée"))  # le chat a grimpé
+    assert props.windows == [w] and (w.y(), w.height()) == (600, 200)
+    assert w.pixmap.toImage().copy(0, 170, w.width(), 30) == lower  # le bas déjà tracé ne bouge pas
+    props.handle(("claws", 700.0, 300, 500, "autre montée"))
+    assert len(props.windows) == 2

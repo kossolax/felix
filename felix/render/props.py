@@ -37,7 +37,10 @@ class PropWindow(QWidget):
         self.setGeometry(QRect(round(x), round(y), pixmap.width(), pixmap.height()))
         self._set_pixmap(pixmap)
         self._fade = None
-        QTimer.singleShot(int(lifetime * 1000), self.fade_out)
+        self._life = QTimer(self)
+        self._life.setSingleShot(True)
+        self._life.timeout.connect(self.fade_out)
+        self._life.start(int(lifetime * 1000))
 
     def _set_pixmap(self, pixmap):
         self.pixmap = pixmap
@@ -92,24 +95,55 @@ class AnimPropWindow(PropWindow):
         self.update()
 
 
-def claw_pixmap(height, rng):
-    """Quatre griffures légèrement ondulées, blanches cernées de gris, sur `height` pixels."""
+CLAW_STEP = 8  # px entre deux ondulations d'une griffure
+
+
+def claw_pixmap(height, wiggle):
+    """Quatre griffures légèrement ondulées, blanches cernées de gris, sur `height` pixels. Tracées
+    depuis le bas : `wiggle[i][k]`, écart du trait k au i-ième pas de CLAW_STEP px au-dessus du bas
+    (une griffure qui s'allonge vers le haut garde ainsi le même bas)."""
     pix = QPixmap(CLAW_WIDTH, max(height, 1))
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    steps = -(-height // CLAW_STEP)
     for k in range(4):
         x = 4 + k * 6.5
         path = QPainterPath()
-        path.moveTo(x, 0)
-        for y in range(8, height + 8, 8):
-            path.lineTo(x + rng.uniform(-1.2, 1.2), min(y, height))
+        path.moveTo(x, height)
+        for i in range(steps):
+            path.lineTo(x + wiggle[i][k], max(height - (i + 1) * CLAW_STEP, 0))
         p.setPen(QPen(QColor(60, 60, 60, 150), 3.2))
         p.drawPath(path)
         p.setPen(QPen(QColor(255, 255, 255, 220), 1.4))
         p.drawPath(path)
     p.end()
     return pix
+
+
+class ClawWindow(PropWindow):
+    """Griffures d'une escalade : elles s'allongent vers le haut à mesure que le chat grimpe, et
+    ne commencent à s'effacer qu'une fois la montée finie."""
+
+    def __init__(self, x, top, bottom, lifetime, rng, masked=False):
+        self.bottom, self.rng, self.wiggle = round(bottom), rng, []
+        super().__init__(self._draw(round(top)), x, top, lifetime, masked=masked)
+
+    def _draw(self, top):
+        height = max(self.bottom - top, 1)
+        while len(self.wiggle) * CLAW_STEP < height:
+            self.wiggle.append([self.rng.uniform(-1.2, 1.2) for _ in range(4)])
+        return claw_pixmap(height, self.wiggle)
+
+    def grow(self, top):
+        top = round(top)
+        if top >= self.y():
+            return
+        pixmap = self._draw(top)
+        self.setGeometry(QRect(self.x(), top, pixmap.width(), pixmap.height()))
+        self._set_pixmap(pixmap)
+        self.update()
+        self._life.start(int(self.lifetime * 1000))  # le temps d'affichage court depuis le dernier coup de griffe
 
 
 class PropManager:
@@ -121,6 +155,7 @@ class PropManager:
         self.masked = shape_masks() if masked is None else masked
         self.hidden = False  # derrière une appli en plein écran, comme le chat
         self.windows = []
+        self._climbs = {}  # griffures d'une escalade en cours, par montée
         self.rng = random.Random()
 
     def set_hidden(self, hidden):
@@ -151,9 +186,16 @@ class PropManager:
             self._add(AnimPropWindow([self.bank.pixmap(f, mirrored) for f in anim.frames], x, y, anim.fps,
                                      masked=self.masked))
         elif kind == "claws":
-            _, x, top, bottom = event
-            self._add(PropWindow(claw_pixmap(round(bottom - top), self.rng), x - CLAW_WIDTH / 2, top, self.lifetime,
-                                 masked=self.masked))
+            _, x, top, bottom, *climb = event  # climb : la montée dont elles font partie, qui les allonge
+            window = self._climbs.get(climb[0]) if climb else None
+            if window is not None and not window.closed:
+                window.grow(top)
+                return
+            window = ClawWindow(x - CLAW_WIDTH / 2, top, bottom, self.lifetime, self.rng, masked=self.masked)
+            if climb:
+                self._climbs = {k: w for k, w in self._climbs.items() if not w.closed}
+                self._climbs[climb[0]] = window
+            self._add(window)
 
     def _add(self, window):
         self.windows = [w for w in self.windows if not w.closed]

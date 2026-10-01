@@ -1,5 +1,6 @@
 """Actions des scripts du chat : chacune tourne jusqu'à sa fin (update renvoie True), puis le
 script reprend. Voir felix.core.pet."""
+import itertools
 import math
 from dataclasses import dataclass
 
@@ -243,10 +244,13 @@ class Away:
 
 
 class Climb:
-    """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord).
+    """Escalade la face d'une fenêtre jusqu'à son bord (pieds CLIMB_TOP_DROP sous le bord), en y
+    laissant des griffures qui s'allongent au fur et à mesure, sous ses pattes avant.
 
     Suit la fenêtre si elle bouge ; si elle disparaît, le chat tombe."""
     airborne = True
+    CLAW_STEP = 4  # px de montée entre deux allongements des griffures
+    _ids = itertools.count()
 
     def __init__(self, owner):
         self.owner = owner
@@ -254,8 +258,16 @@ class Climb:
     def start(self, pet):
         pet.body.support = None
         pet.body.y -= CLIMB_LIFT * pet.k
-        self.bottom = pet.body.y
+        self.bottom = self.marked = pet.body.y
+        self.claws = next(self._ids)  # une même trace, d'un bout à l'autre de la montée
         pet.play("climb")
+
+    def _claws(self, pet):
+        """Griffures du bas de la montée jusqu'à ses pattes avant (à mi-hauteur de CLIMB_TOP_DROP)."""
+        drop = CLIMB_TOP_DROP * pet.k
+        top = pet.body.y - (drop - drop // 2)
+        pet.emit(("claws", pet.body.x, top, self.bottom, self.claws))
+        self.marked = top
 
     def update(self, pet, dt):
         win = _window_under(pet, self.owner)
@@ -266,8 +278,11 @@ class Climb:
         target = win.rect.y + CLIMB_TOP_DROP * pet.k
         pet.body.y = max(target, pet.body.y - CLIMB_SPEED * pet.k * dt)
         if pet.body.y > target:
+            drop = CLIMB_TOP_DROP * pet.k
+            if self.marked - (pet.body.y - (drop - drop // 2)) >= self.CLAW_STEP * pet.k:
+                self._claws(pet)
             return False
-        pet.emit(("claws", pet.body.x, win.rect.y + CLIMB_TOP_DROP * pet.k // 2, self.bottom))
+        self._claws(pet)
         return True
 
 

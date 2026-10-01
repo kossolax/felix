@@ -190,3 +190,26 @@ def test_a_cat_that_is_out_cannot_be_grabbed():
     pet.request("sit")
     names, _ = run(pet, snap, 6)
     assert "enter_flap" in names and pet.body.grounded
+
+
+def test_the_claw_marks_grow_as_the_cat_climbs_not_all_at_once_at_the_top():
+    from felix.core.tuning import CLIMB_TOP_DROP
+    high = WinRect(9, Rect(500, 250, 900, 600))
+    snap = world(high)
+    pet = settled_pet(snap, seed=1)
+    pet.body.x = 900
+    pet.request("climb")
+    seen = []  # (griffures émises, animation, hauteur du chat) image par image
+    for _ in range(int(30 / DT)):
+        view = pet.update(DT, snap)
+        claws = [e for e in view.events if isinstance(e, tuple) and e[0] == "claws"]
+        seen.extend((c, view.animation, pet.body.y) for c in claws)
+    climbing = [(c, y) for c, anim, y in seen if anim == "climb"]
+    assert len(climbing) >= 10  # au fil de la montée, pas une seule fois en haut
+    keys = {c[4] for c, _anim, _y in seen}
+    assert len(keys) == 1 and None not in keys  # une même trace qui s'allonge
+    tops = [c[2] for c, _anim, _y in seen]
+    assert tops == sorted(tops, reverse=True) and len({c[3] for c, _a, _y in seen}) == 1  # vers le haut, bas fixe
+    for c, y in climbing:
+        assert abs(c[2] - (y - CLIMB_TOP_DROP // 2)) <= 1  # le haut des griffures suit ses pattes
+    assert tops[-1] == 250 + CLIMB_TOP_DROP // 2  # et finit où elles finissaient
